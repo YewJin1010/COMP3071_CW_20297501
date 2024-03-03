@@ -1,9 +1,3 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.distributions as distributions
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -15,10 +9,6 @@ import torch.distributions as distributions
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
-
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
 
 class MLP(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim):
@@ -47,23 +37,10 @@ class ActorCritic(nn.Module):
         
         return action_pred, value_pred
     
-INPUT_DIM = train_env.observation_space.shape[0]
-HIDDEN_DIM = 128
-OUTPUT_DIM = train_env.action_space.n
-
-actor = MLP(INPUT_DIM, OUTPUT_DIM, HIDDEN_DIM)
-critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
-
-policy = ActorCritic(actor, critic)
-
 def init_weights(m):
     if type(m) == nn.Linear:
         nn.init.xavier_normal_(m.weight, gain=0.01)
         nn.init.constant_(m.bias, 0)
-
-policy.apply(init_weights)
-LEARNING_RATE = 0.01
-optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 
 def train(env, policy, optimizer, discount_factor):
     
@@ -78,6 +55,8 @@ def train(env, policy, optimizer, discount_factor):
     state = env.reset()
 
     while not done:
+        if isinstance(state, tuple):
+            state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
 
@@ -91,9 +70,7 @@ def train(env, policy, optimizer, discount_factor):
         action = dist.sample()
         
         log_prob_action = dist.log_prob(action)
-        
-        state, reward, done, _ = env.step(action.item())
-
+        state, reward, done, _, _ = env.step(action.item())
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
@@ -129,8 +106,15 @@ def calculate_returns(rewards, discount_factor, normalize = True):
 
 def calculate_advantages(returns, values, normalize = True):
     
-    advantages = returns - values
-    
+    print("flag 2")
+    print("returns", returns, "values", values)
+    try: 
+        advantages = returns - values
+    except:
+        print("flag 3")
+        values_flat = values.flatten()
+        advantages = returns - values_flat
+
     if normalize:
         
         advantages = (advantages - advantages.mean()) / advantages.std()
@@ -184,7 +168,10 @@ def evaluate(env, policy):
         
     return episode_reward
 
-MAX_EPISODES = 1_000
+train_env = gym.make('LunarLander-v2')
+test_env = gym.make('LunarLander-v2')
+
+MAX_EPISODES = 1000
 DISCOUNT_FACTOR = 0.99
 N_TRIALS = 25
 REWARD_THRESHOLD = 200
@@ -192,6 +179,19 @@ PRINT_EVERY = 10
 
 train_rewards = []
 test_rewards = []
+
+INPUT_DIM = train_env.observation_space.shape[0]
+HIDDEN_DIM = 128
+OUTPUT_DIM = train_env.action_space.n
+
+actor = MLP(INPUT_DIM, OUTPUT_DIM, HIDDEN_DIM)
+critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
+
+policy = ActorCritic(actor, critic)
+
+policy.apply(init_weights)
+LEARNING_RATE = 0.01
+optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 
 for episode in range(1, MAX_EPISODES+1):
     

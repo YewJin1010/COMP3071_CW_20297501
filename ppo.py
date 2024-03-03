@@ -11,13 +11,6 @@ import gym
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-SEED = 1234
-
-train_env.seed(SEED);
-test_env.seed(SEED+1);
-np.random.seed(SEED);
-torch.manual_seed(SEED);
-
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
@@ -82,6 +75,8 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     state = env.reset()
 
     while not done:
+        if isinstance(state, tuple):
+            state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
 
@@ -98,7 +93,7 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         
         log_prob_action = dist.log_prob(action)
         
-        state, reward, done, _ = env.step(action.item())
+        state, reward, done, _, _ = env.step(action.item())
 
         actions.append(action)
         log_prob_actions.append(log_prob_action)
@@ -197,6 +192,8 @@ def evaluate(env, policy):
 
     while not done:
 
+        if isinstance(state, tuple):
+            state, _ = state
         state = torch.FloatTensor(state).unsqueeze(0)
 
         with torch.no_grad():
@@ -207,7 +204,7 @@ def evaluate(env, policy):
                 
         action = torch.argmax(action_prob, dim = -1)
                 
-        state, reward, done, _ = env.step(action.item())
+        state, reward, done, _, _ = env.step(action.item())
 
         episode_reward += reward
     return episode_reward
