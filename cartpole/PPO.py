@@ -3,29 +3,26 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as distributions
-
-import matplotlib.pyplot as plt
 import numpy as np
 import gym
-
+MAX_EPISODE_DURATION = 300 
+SOLVED_THRESHOLD = 100
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.5):
         super().__init__()
-        
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
-            nn.Linear(hidden_dim, output_dim)
-        )
+
+        self.fc_1 = nn.Linear(input_dim, hidden_dim)
+        self.fc_2 = nn.Linear(hidden_dim, output_dim)
+        self.dropout = nn.Dropout(dropout)
         
     def forward(self, x):
-        x = self.net(x)
+        x = self.fc_1(x)
+        x = self.dropout(x)
+        x = F.relu(x)
+        x = self.fc_2(x)
         return x
     
+
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
         super().__init__()
@@ -56,15 +53,19 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     rewards = []
     done = False
     episode_reward = 0
+    violations = []
+    time = 0
 
     state = env.reset()
 
-    while not done:
-        if isinstance(state, tuple):
-            state, _ = state
+    while not done and time < MAX_EPISODE_DURATION:
 
-        env.render()
-        state = torch.FloatTensor(state).unsqueeze(0)
+        if isinstance(state, tuple):
+            print("State 1: ", state)
+            state = torch.tensor(state[0], dtype=torch.float32).unsqueeze(0)
+        else:
+            print("State 2: ", state)
+            state = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
 
         #append state here, not after we get the next state from env.step()
         states.append(state)
@@ -79,26 +80,33 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         
         log_prob_action = dist.log_prob(action)
         
-        state, reward, done, _, _ = env.step(action.item())
+        state, reward, done, truncated, _ = env.step(action.item())
 
         actions.append(action)
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
         
+        violation = _.get('constraint_costs', [0])
+        violations.append(violation)
+
         episode_reward += reward
+        time += 1
     
     states = torch.cat(states)
     actions = torch.cat(actions)    
     log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
-
+    
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
 
+    violations_flat = [item for sublist in violations for item in sublist]
+    total_violations = sum(violations_flat)
+    
     policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip)
 
-    return policy_loss, value_loss, episode_reward
+    return policy_loss, value_loss, episode_reward, total_violations, time
 
 def calculate_returns(rewards, discount_factor, normalize = True):
     
@@ -115,6 +123,7 @@ def calculate_returns(rewards, discount_factor, normalize = True):
         returns = (returns - returns.mean()) / returns.std()
         
     return returns
+
 def calculate_advantages(returns, values, normalize = True):
     
     advantages = returns - values
@@ -124,16 +133,15 @@ def calculate_advantages(returns, values, normalize = True):
         advantages = (advantages - advantages.mean()) / advantages.std()
         
     return advantages
+
 def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip):
     
     total_policy_loss = 0 
     total_value_loss = 0
-
-    states = states.detach()
-    actions = actions.detach()
-    log_prob_actions = log_prob_actions.detach()
+    
     advantages = advantages.detach()
-    returns = returns.detach()
+    log_prob_actions = log_prob_actions.detach()
+    actions = actions.detach()
     
     for _ in range(ppo_steps):
                 
@@ -151,9 +159,9 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
         policy_loss_1 = policy_ratio * advantages
         policy_loss_2 = torch.clamp(policy_ratio, min = 1.0 - ppo_clip, max = 1.0 + ppo_clip) * advantages
         
-        policy_loss = - torch.min(policy_loss_1, policy_loss_2).mean()
+        policy_loss = - torch.min(policy_loss_1, policy_loss_2).sum()
         
-        value_loss = F.smooth_l1_loss(returns, value_pred).mean()
+        value_loss = F.smooth_l1_loss(returns, value_pred).sum()
     
         optimizer.zero_grad()
 
@@ -164,50 +172,17 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
     
         total_policy_loss += policy_loss.item()
         total_value_loss += value_loss.item()
+    
     return total_policy_loss / ppo_steps, total_value_loss / ppo_steps
 
-def evaluate(env, policy):
-    
-    policy.eval()
-    
-    rewards = []
-    done = False
-    episode_reward = 0
-
-    state = env.reset()
-
-    while not done:
-
-        if isinstance(state, tuple):
-            state, _ = state
-        state = torch.FloatTensor(state).unsqueeze(0)
-
-        with torch.no_grad():
-        
-            action_pred, _ = policy(state)
-
-            action_prob = F.softmax(action_pred, dim = -1)
-                
-        action = torch.argmax(action_prob, dim = -1)
-                
-        state, reward, done, _, _ = env.step(action.item())
-
-        episode_reward += reward
-    return episode_reward
-
 def train_ppo(env):
-    MAX_EPISODES = 1_000
-    DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 25
-    REWARD_THRESHOLD = 200
-    PRINT_EVERY = 10
-    PPO_STEPS = 5
-    PPO_CLIP = 0.2
+    SEED = None
+    env.seed(SEED)
+    np.random.seed(SEED)
 
-    
-    INPUT_DIM = train_env.observation_space.shape[0]
+    INPUT_DIM = env.observation_space.shape[0]
     HIDDEN_DIM = 128
-    OUTPUT_DIM = train_env.action_space.n
+    OUTPUT_DIM = env.action_space.n
 
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
@@ -216,45 +191,71 @@ def train_ppo(env):
 
     policy.apply(init_weights)
 
-    LEARNING_RATE = 0.0005
+    LEARNING_RATE = 0.01
 
     optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
 
+    MAX_EPISODES = 1000
+    DISCOUNT_FACTOR = 0.99
+    REWARD_THRESHOLD = 195
+    PPO_STEPS = 5
+    PPO_CLIP = 0.2
 
     train_rewards = []
-    test_rewards = []
-
+    violation_list = []
+    avg_rewards_list = []
+    avg_violations_list = []
+    duraiton_list = []
+    avg_durations = []
+    avg_durations_list = []
+    successful_episode = 0
     for episode in range(1, MAX_EPISODES+1):
+        #env.render()
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
-        
-        test_reward = evaluate(test_env, policy)
-        
+        policy_loss, value_loss, train_reward, total_violations, time = train(env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
+        print("POLICY LOSS: ", policy_loss)
+        print("VALUE_LOSS: ", value_loss)
+
         train_rewards.append(train_reward)
-        test_rewards.append(test_reward)
-        
-        mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
-        mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-        
-        if episode % PRINT_EVERY == 0:
-            
-            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
-        
-        if mean_test_rewards >= REWARD_THRESHOLD:
-            print(f'Reached reward threshold in {episode} episodes')
-            break
+        print("TRAIN REWARDS: ", train_rewards)
+        print("LEN TRAIN REWARDS: ", len(train_rewards))
+
+        violation_list.append(total_violations)
+        duraiton_list.append(time)
+
+        print("Episode", episode, "duration: ", time)
 
 
-    plt.figure(figsize=(12,8))
-    plt.plot(test_rewards, label='Test Reward')
-    plt.plot(train_rewards, label='Train Reward')
-    plt.xlabel('Episode', fontsize=20)
-    plt.ylabel('Reward', fontsize=20)
-    plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
-    plt.legend(loc='lower right')
-    plt.grid()
+        if len(train_rewards) >= 100:
+            print("EPISODE NUMBER: ", episode)
 
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
+            prev_episodes = train_rewards[len(train_rewards) - 100:]
+            avg_reward = sum(prev_episodes) / len(prev_episodes)
+            avg_rewards_list.append(avg_reward)
 
-train_ppo(train_env)
+            prev_violations = violation_list[len(violation_list) - 100:]
+            avg_violations = sum(prev_violations) / len(prev_violations)
+            avg_violations_int = int(avg_violations)
+            avg_violations_list.append(avg_violations_int)
+
+            prev_durations = duraiton_list[len(duraiton_list) - 100:]
+            avg_durations = sum(prev_durations) / len(prev_durations)
+            avg_durations_list.append(avg_durations)
+
+            if avg_reward > REWARD_THRESHOLD:
+                print("Average number of violations: ", avg_violations_int)
+                print("Average duration: ", avg_durations)
+                
+                successful_episode += 1
+
+                print("Successful Episode: ", successful_episode)
+
+                if successful_episode > SOLVED_THRESHOLD:
+                    print(f"Solved with average reward {avg_reward} at {episode} episodes")
+                    env.close()
+                    return avg_rewards_list, avg_violations_list, episode, avg_durations_list
+
+    return avg_rewards_list, avg_violations_list, episode, avg_durations_list
+
+env = gym.make('CartPole-v1')
+avg_rewards_list, avg_violations_list, episode, avg_durations_list = train_ppo(env)
