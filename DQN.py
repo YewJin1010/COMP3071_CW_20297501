@@ -59,8 +59,7 @@ class DQNAgent:
             self.epsilon *= self.epsilon_decay
 
 # Function to train the DQN agent
-def train_dqn(env_name, episodes=1000, batch_size=64):
-    env = gym.make(env_name)
+def train_dqn(env, episodes=1000, batch_size=64):
     input_dim = env.observation_space.shape[0]
     output_dim = env.action_space.n
     agent = DQNAgent(input_dim, output_dim)
@@ -70,7 +69,7 @@ def train_dqn(env_name, episodes=1000, batch_size=64):
         done = False
         score = 0
         while not done:
-            env.render()    
+            #env.render()
             action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             agent.remember(state, action, reward, next_state, done)
@@ -87,4 +86,6 @@ def train_dqn(env_name, episodes=1000, batch_size=64):
     env.close()
 
 # Train the DQN agent for the LunarLander-v2 environment
-train_dqn('LunarLander-v2')
+env = gym.make('LunarLander-v2', render_mode='human')
+
+train_dqn(env)
