@@ -11,18 +11,23 @@ import numpy as np
 import gym
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim):
-        super(MLP, self).__init__()
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
-
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+        super().__init__()
+        
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.PReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.PReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
+        
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.net(x)
         return x
-
+    
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
         super().__init__()
@@ -39,8 +44,8 @@ class ActorCritic(nn.Module):
     
 def init_weights(m):
     if type(m) == nn.Linear:
-        nn.init.xavier_normal_(m.weight, gain=0.01)
-        nn.init.constant_(m.bias, 0)
+        torch.nn.init.xavier_normal_(m.weight)
+        m.bias.data.fill_(0)
 
 def train(env, policy, optimizer, discount_factor):
     
@@ -58,19 +63,19 @@ def train(env, policy, optimizer, discount_factor):
         if isinstance(state, tuple):
             state, _ = state
 
+        env.render()
         state = torch.FloatTensor(state).unsqueeze(0)
+        action_pred = policy.actor(state)
+        value_pred = policy.critic(state)
 
-        action_pred = actor(state)
-        value_pred = critic(state)
-                
-        action_prob = F.softmax(action_pred, dim = -1)
-                
+        action_prob = F.softmax(action_pred, dim=-1)
+
         dist = distributions.Categorical(action_prob)
 
         action = dist.sample()
         
         log_prob_action = dist.log_prob(action)
-        state, reward, done, _, _ = env.step(action.item())
+        state, reward, done, _ = env.step(action.item())
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
@@ -105,15 +110,8 @@ def calculate_returns(rewards, discount_factor, normalize = True):
     return returns
 
 def calculate_advantages(returns, values, normalize = True):
-    
-    print("flag 2")
-    print("returns", returns, "values", values)
-    try: 
-        advantages = returns - values
-    except:
-        print("flag 3")
-        values_flat = values.flatten()
-        advantages = returns - values_flat
+
+    advantages = returns - values
 
     if normalize:
         
@@ -151,7 +149,9 @@ def evaluate(env, policy):
     state = env.reset()
 
     while not done:
-
+        
+        if isinstance(state, tuple):
+            state, _ = state
         state = torch.FloatTensor(state).unsqueeze(0)
 
         with torch.no_grad():
@@ -168,59 +168,70 @@ def evaluate(env, policy):
         
     return episode_reward
 
+def train_a2c(train_env, test_env): 
+    
+    MAX_EPISODES = 1000
+    DISCOUNT_FACTOR = 0.99
+    N_TRIALS = 25
+    REWARD_THRESHOLD = 200
+    PRINT_EVERY = 10
+
+    INPUT_DIM = train_env.observation_space.shape[0]
+    HIDDEN_DIM = 128
+    OUTPUT_DIM = test_env.action_space.n
+
+    actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
+    critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
+
+    policy = ActorCritic(actor, critic)
+    policy.apply(init_weights)
+
+    LEARNING_RATE = 0.0005
+
+    optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
+
+    train_rewards = []
+    test_rewards = []
+
+    for episode in range(1, MAX_EPISODES+1):
+        
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+        
+        test_reward = evaluate(test_env, policy)
+        
+        train_rewards.append(train_reward)
+        test_rewards.append(test_reward)
+        
+        mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
+        mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+        
+        if episode % PRINT_EVERY == 0:
+        
+            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
+        
+        if mean_test_rewards >= REWARD_THRESHOLD:
+
+            print(f'Reached reward threshold in {episode} episodes')
+            break
+
+
+    plt.figure(figsize=(12,8))
+    plt.plot(test_rewards, label='Test Reward')
+    plt.plot(train_rewards, label='Train Reward')
+    plt.xlabel('Episode', fontsize=20)
+    plt.ylabel('Reward', fontsize=20)
+    plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
+    plt.legend(loc='lower right')
+    plt.grid()
+
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-MAX_EPISODES = 1000
-DISCOUNT_FACTOR = 0.99
-N_TRIALS = 25
-REWARD_THRESHOLD = 200
-PRINT_EVERY = 10
+SEED = 1234
 
-train_rewards = []
-test_rewards = []
+train_env.seed(SEED)
+test_env.seed(SEED+1)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
-INPUT_DIM = train_env.observation_space.shape[0]
-HIDDEN_DIM = 128
-OUTPUT_DIM = train_env.action_space.n
-
-actor = MLP(INPUT_DIM, OUTPUT_DIM, HIDDEN_DIM)
-critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
-
-policy = ActorCritic(actor, critic)
-
-policy.apply(init_weights)
-LEARNING_RATE = 0.01
-optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
-
-for episode in range(1, MAX_EPISODES+1):
-    
-    policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
-    
-    test_reward = evaluate(test_env, policy)
-    
-    train_rewards.append(train_reward)
-    test_rewards.append(test_reward)
-    
-    mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
-    mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-    
-    if episode % PRINT_EVERY == 0:
-    
-        print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
-    
-    if mean_test_rewards >= REWARD_THRESHOLD:
-        
-        print(f'Reached reward threshold in {episode} episodes')
-        
-        break
-
-
-plt.figure(figsize=(12,8))
-plt.plot(test_rewards, label='Test Reward')
-plt.plot(train_rewards, label='Train Reward')
-plt.xlabel('Episode', fontsize=20)
-plt.ylabel('Reward', fontsize=20)
-plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
-plt.legend(loc='lower right')
-plt.grid()
+train_a2c(train_env, test_env)

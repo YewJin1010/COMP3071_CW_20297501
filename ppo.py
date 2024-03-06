@@ -37,7 +37,7 @@ class ActorCritic(nn.Module):
         
         action_pred = self.actor(state)
         value_pred = self.critic(state)
-        
+    
         return action_pred, value_pred
 
 def init_weights(m):
@@ -70,7 +70,7 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         states.append(state)
         
         action_pred, value_pred = policy(state)
-                
+   
         action_prob = F.softmax(action_pred, dim = -1)
                 
         dist = distributions.Categorical(action_prob)
@@ -92,7 +92,6 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     actions = torch.cat(actions)    
     log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
-
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
 
@@ -113,10 +112,11 @@ def calculate_returns(rewards, discount_factor, normalize = True):
     
     if normalize:
         returns = (returns - returns.mean()) / returns.std()
-        
+ 
     return returns
 def calculate_advantages(returns, values, normalize = True):
-    
+    print("returns", returns)
+    print("values", values)
     advantages = returns - values
     
     if normalize:
@@ -195,7 +195,7 @@ def evaluate(env, policy):
         episode_reward += reward
     return episode_reward
 
-def train_ppo(env):
+def train_ppo(train_env, test_env):
     MAX_EPISODES = 1_000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 25
@@ -219,7 +219,6 @@ def train_ppo(env):
     LEARNING_RATE = 0.0005
 
     optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
-
 
     train_rewards = []
     test_rewards = []
@@ -264,4 +263,4 @@ test_env.seed(SEED+1)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 
-train_ppo(train_env)
+train_ppo(train_env, test_env)
