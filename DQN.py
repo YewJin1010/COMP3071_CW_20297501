@@ -7,7 +7,6 @@ import numpy as np
 from collections import deque
 import random
 
-# Define the Deep Q-Network (DQN) architecture
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DQN, self).__init__()
@@ -41,10 +40,10 @@ class DQNAgent:
         q_values = self.model(torch.FloatTensor(state))
         return torch.argmax(q_values).item()
 
-    def replay(self, batch_size):
-        if len(self.memory) < batch_size:
+    def replay(self, BATCH_SIZE):
+        if len(self.memory) < BATCH_SIZE:
             return
-        minibatch = random.sample(self.memory, batch_size)
+        minibatch = random.sample(self.memory, BATCH_SIZE)
         for state, action, reward, next_state, done in minibatch:
             target = reward
             if not done:
@@ -59,12 +58,15 @@ class DQNAgent:
             self.epsilon *= self.epsilon_decay
 
 # Function to train the DQN agent
-def train_dqn(env, episodes=1000, batch_size=64):
+def train_dqn(env):
+    MAX_EPISODES = 1000
+    BATCH_SIZE = 64
+    
     input_dim = env.observation_space.shape[0]
     output_dim = env.action_space.n
     agent = DQNAgent(input_dim, output_dim)
     scores = deque(maxlen=100)
-    for episode in range(1, episodes + 1):
+    for episode in range(1, MAX_EPISODES + 1):
         state = env.reset()
         done = False
         score = 0
@@ -76,10 +78,10 @@ def train_dqn(env, episodes=1000, batch_size=64):
             state = next_state
             score += reward
         scores.append(score)
-        agent.replay(batch_size)
+        agent.replay(BATCH_SIZE)
         mean_score = np.mean(scores)
         if episode % 100 == 0:
-            print(f"Episode {episode}/{episodes}, Mean Score: {mean_score}")
+            print(f"Episode {episode}/{MAX_EPISODES}, Mean Score: {mean_score}")
         if mean_score >= 200:
             print(f"Environment solved in {episode} episodes!")
             break
@@ -87,5 +89,14 @@ def train_dqn(env, episodes=1000, batch_size=64):
 
 # Train the DQN agent for the LunarLander-v2 environment
 env = gym.make('LunarLander-v2', render_mode='human')
+train_env = gym.make('LunarLander-v2')
+test_env = gym.make('LunarLander-v2')
+
+SEED = 1234
+
+train_env.seed(SEED)
+test_env.seed(SEED+1)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 train_dqn(env)

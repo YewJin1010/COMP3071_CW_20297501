@@ -196,7 +196,7 @@ def evaluate(env, policy):
     return episode_reward
 
 def train_ppo(train_env, test_env):
-    MAX_EPISODES = 1_000
+    MAX_EPISODES = 1000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
