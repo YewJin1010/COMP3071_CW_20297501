@@ -7,17 +7,22 @@ import numpy as np
 from collections import deque
 import random
 
-class DQN(nn.Module):
-    def __init__(self, input_dim, output_dim):
-        super(DQN, self).__init__()
-        self.fc1 = nn.Linear(input_dim, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, output_dim)
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+        super().__init__()
+        
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.PReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.PReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
+        x = self.n
 
 class DQNAgent:
     def __init__(self, input_dim, output_dim, lr=0.001, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
@@ -28,7 +33,7 @@ class DQNAgent:
         self.epsilon = epsilon
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
-        self.model = DQN(input_dim, output_dim)
+        self.model = MLP(input_dim, output_dim)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
     def remember(self, state, action, reward, next_state, done):
