@@ -115,8 +115,6 @@ def calculate_returns(rewards, discount_factor, normalize = True):
  
     return returns
 def calculate_advantages(returns, values, normalize = True):
-    print("returns", returns)
-    print("values", values)
     advantages = returns - values
     
     if normalize:
