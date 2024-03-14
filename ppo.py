@@ -203,7 +203,6 @@ def train_ppo(train_env, test_env):
     PRINT_EVERY = 10
     PPO_STEPS = 5
     PPO_CLIP = 0.2
-
     
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
