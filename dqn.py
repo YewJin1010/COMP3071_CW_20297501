@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 from collections import deque
 import random
+import matplotlib.pyplot as plt
 
 class MLP(nn.Module): 
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
@@ -79,8 +80,21 @@ def train(env, agent):
     
     return episode_reward
 
-# Function to train the DQN agent
+def evaluate(env, agent):
+    done = False
+    episode_reward = 0
+
+    state = env.reset()
+
+    while not done:
+        action = agent.act(state)
+        state, reward, done, _ = env.step(action)
+        episode_reward += reward
+    
+    return episode_reward
+
 def train_dqn(env):
+
     MAX_EPISODES = 1000
     BATCH_SIZE = 64
     N_TRIALS = 25
@@ -95,24 +109,39 @@ def train_dqn(env):
     test_rewards = []
 
     agent = DQNAgent(INPUT_DIM, HIDDEN_DIM ,OUTPUT_DIM)
-    scores = deque(maxlen=N_TRIALS)
-
+    
     for episode in range(1, MAX_EPISODES):
 
         train_reward = train(env, agent)
+        test_reward = evaluate(env, agent)
+
         train_rewards.append(train_reward)
-       
+        test_rewards.append(test_reward)
+
         agent.replay(BATCH_SIZE)
-        mean_score = np.mean(train_rewards[-N_TRIALS:])
+
+        mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
+        mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+
         if episode % PRINT_EVERY == 0:
-            print(f"Episode {episode}/{MAX_EPISODES}, Mean Score: {mean_score}")
-        if mean_score >= REWARD_THRESHOLD:
-            print(f"Environment solved in {episode} episodes!")
+            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
+
+        if mean_test_rewards >= REWARD_THRESHOLD:
+
+            print(f'Reached reward threshold in {episode} episodes')
             break
-    env.close()
+
+    plt.figure(figsize=(12,8))
+    plt.plot(test_rewards, label='Test Reward')
+    plt.plot(train_rewards, label='Train Reward')
+    plt.xlabel('Episode', fontsize=20)
+    plt.ylabel('Reward', fontsize=20)
+    plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
+    plt.legend(loc='lower right')
+    plt.grid()
 
 # Train the DQN agent for the LunarLander-v2 environment
-env = gym.make('LunarLander-v2', render_mode='human')
+#env = gym.make('LunarLander-v2', render_mode='human')
 train_env = gym.make('LunarLander-v2', render_mode='human')
 test_env = gym.make('LunarLander-v2', render_mode='human')
 
@@ -123,4 +152,4 @@ test_env.seed(SEED+1)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 
-train_dqn(env, train_env, test_env)
+train_dqn(train_env, test_env)
