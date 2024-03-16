@@ -15,9 +15,16 @@ from envs.lunar_lander import LunarLander
 train_env = LunarLander()
 test_env = LunarLander()
 
-
-# Enter gravity -12 - 0
+"""
+# Gravity -12 to 0
 LunarLander.gravity = -12
+# Enable/Disable wind
+LunarLander.enable_wind = True
+# Wind power 0 to 20
+LunarLander.wind_power = 20
+# Turbulence power 0 to 2
+LunarLander.turbulence_power = 2
+"""
 
 #train_env = gym.make('LunarLander-v2')
 #test_env = gym.make('LunarLander-v2')
@@ -29,7 +36,10 @@ test_env.seed(SEED+1)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 
-
+train_a2c(train_env, test_env)
+train_ppo(train_env, test_env)
+train_dqn(train_env,test_env)
+"""
 print("Select agent to train: ")
 print("1. PPO")
 print("2. A2C")
@@ -44,3 +54,4 @@ elif agent == 3:
     train_dqn(train_env)
 else:
     print("Invalid input")
+"""

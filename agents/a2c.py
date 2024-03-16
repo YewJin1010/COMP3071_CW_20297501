@@ -221,6 +221,7 @@ def train_a2c(train_env, test_env):
     plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
+    plt.savefig('a2c_lunar_lander.png')
 
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')

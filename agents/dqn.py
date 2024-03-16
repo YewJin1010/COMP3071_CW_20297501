@@ -93,7 +93,7 @@ def evaluate(env, agent):
     
     return episode_reward
 
-def train_dqn(env):
+def train_dqn(train_env, test_env):
 
     MAX_EPISODES = 1000
     BATCH_SIZE = 64
@@ -101,9 +101,9 @@ def train_dqn(env):
     REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
     
-    INPUT_DIM = env.observation_space.shape[0]
+    INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
-    OUTPUT_DIM = env.action_space.n
+    OUTPUT_DIM = train_env.action_space.n
 
     train_rewards = []
     test_rewards = []
@@ -112,8 +112,8 @@ def train_dqn(env):
     
     for episode in range(1, MAX_EPISODES):
 
-        train_reward = train(env, agent)
-        test_reward = evaluate(env, agent)
+        train_reward = train(train_env, agent)
+        test_reward = evaluate(test_env, agent)
 
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
@@ -139,6 +139,7 @@ def train_dqn(env):
     plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
+    plt.savefig('dqn_lunar_lander.png')
 
 # Train the DQN agent for the LunarLander-v2 environment
 #env = gym.make('LunarLander-v2', render_mode='human')
