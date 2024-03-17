@@ -61,7 +61,6 @@ def train(env, policy, optimizer, discount_factor):
         if isinstance(state, tuple):
             state, _ = state
 
-        env.render()
         state = torch.FloatTensor(state).unsqueeze(0)
         action_pred = policy.actor(state)
         value_pred = policy.critic(state)

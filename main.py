@@ -9,39 +9,23 @@ from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
 
-# Import environment
-from envs.lunar_lander import LunarLander
+# Import parameters
+from parameters.params import initialise_lunar_lander
 
-#train_env = LunarLander()
-#test_env = LunarLander()
+print("Select environment to train: ")
+print("1. LunarLander")
+print("2. CartPole")
 
-train_env = gym.make('CartPole-v0')
-test_env = gym.make('CartPole-v0')
+env = int(input("Enter the number of the environment: "))
+if env == 1: 
+    train_env, test_env = initialise_lunar_lander()
+    
+elif env == 2:
+    train_env = gym.make('CartPole-v0')
+    test_env = gym.make('CartPole-v0')
+else:
+    print("Invalid input")
 
-"""
-# Gravity -12 to 0
-LunarLander.gravity = -12
-# Enable/Disable wind
-LunarLander.enable_wind = True
-# Wind power 0 to 20
-LunarLander.wind_power = 20
-# Turbulence power 0 to 2
-LunarLander.turbulence_power = 2
-"""
-
-
-
-SEED = 1234
-
-train_env.seed(SEED)
-test_env.seed(SEED+1)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-
-train_a2c(train_env, test_env)
-train_ppo(train_env, test_env)
-train_dqn(train_env,test_env)
-"""
 print("Select agent to train: ")
 print("1. PPO")
 print("2. A2C")
@@ -56,4 +40,3 @@ elif agent == 3:
     train_dqn(train_env)
 else:
     print("Invalid input")
-"""
