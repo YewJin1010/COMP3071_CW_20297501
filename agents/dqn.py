@@ -139,12 +139,16 @@ def train_dqn(train_env, test_env):
     plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
-    plt.savefig('dqn_lunar_lander.png')
+    #plt.savefig('dqn_lunar_lander.png')
 
+"""
 # Train the DQN agent for the LunarLander-v2 environment
 #env = gym.make('LunarLander-v2', render_mode='human')
 train_env = gym.make('LunarLander-v2', render_mode='human')
 test_env = gym.make('LunarLander-v2', render_mode='human')
+
+#train_env = gym.make('CartPole-v0', render_mode='human')
+#test_env = gym.make('CartPole-v0', render_mode='human')
 
 SEED = 1234
 
@@ -154,3 +158,4 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 
 train_dqn(train_env, test_env)
+"""

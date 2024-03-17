@@ -251,8 +251,12 @@ def train_ppo(train_env, test_env):
     plt.grid()
     plt.savefig('ppo_lunar_lander.png')
 
+"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
+
+#train_env = gym.make('CartPole-v0')
+#test_env = gym.make('CartPole-v0')
 
 SEED = 1234
 
@@ -262,3 +266,4 @@ np.random.seed(SEED)
 torch.manual_seed(SEED)
 
 train_ppo(train_env, test_env)
+"""

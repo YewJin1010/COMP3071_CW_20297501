@@ -12,8 +12,11 @@ from agents.dqn import train_dqn
 # Import environment
 from envs.lunar_lander import LunarLander
 
-train_env = LunarLander()
-test_env = LunarLander()
+#train_env = LunarLander()
+#test_env = LunarLander()
+
+train_env = gym.make('CartPole-v0')
+test_env = gym.make('CartPole-v0')
 
 """
 # Gravity -12 to 0
@@ -26,8 +29,7 @@ LunarLander.wind_power = 20
 LunarLander.turbulence_power = 2
 """
 
-#train_env = gym.make('LunarLander-v2')
-#test_env = gym.make('LunarLander-v2')
+
 
 SEED = 1234
 
