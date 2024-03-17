@@ -45,6 +45,8 @@ class DQNAgent:
     def act(self, state):
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.output_dim)
+        if isinstance(state, tuple):
+            state = state[0]
         q_values = self.model(torch.FloatTensor(state))
         return torch.argmax(q_values).item()
 
@@ -56,6 +58,9 @@ class DQNAgent:
             target = reward
             if not done:
                 target = reward + self.gamma * torch.max(self.model(torch.FloatTensor(next_state))).item()
+            if isinstance(state, tuple):
+                state = state[0]
+            
             target_f = self.model(torch.FloatTensor(state))
             target_f[action] = target
             self.optimizer.zero_grad()
@@ -73,7 +78,7 @@ def train(env, agent):
 
     while not done:
         action = agent.act(state)
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, _, info = env.step(action)
         agent.remember(state, action, reward, next_state, done)
         state = next_state
         episode_reward += reward
@@ -88,7 +93,7 @@ def evaluate(env, agent):
 
     while not done:
         action = agent.act(state)
-        state, reward, done, _ = env.step(action)
+        state, reward, done, _, info = env.step(action)
         episode_reward += reward
     
     return episode_reward

@@ -37,6 +37,6 @@ if agent == 1:
 elif agent == 2:
     train_a2c(train_env, test_env)
 elif agent == 3:
-    train_dqn(train_env)
+    train_dqn(train_env, test_env)
 else:
     print("Invalid input")

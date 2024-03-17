@@ -72,7 +72,7 @@ def train(env, policy, optimizer, discount_factor):
         action = dist.sample()
         
         log_prob_action = dist.log_prob(action)
-        state, reward, done, _ = env.step(action.item())
+        state, reward, done, _, info = env.step(action.item())
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
@@ -159,7 +159,7 @@ def evaluate(env, policy):
                 
         action = torch.argmax(action_prob, dim = -1)
                 
-        state, reward, done, _ = env.step(action.item())
+        state, reward, done, _, info = env.step(action.item())
 
         episode_reward += reward
         

@@ -63,7 +63,6 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         if isinstance(state, tuple):
             state, _ = state
 
-        env.render()
         state = torch.FloatTensor(state).unsqueeze(0)
 
         #append state here, not after we get the next state from env.step()
@@ -79,7 +78,7 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         
         log_prob_action = dist.log_prob(action)
         
-        state, reward, done, _ = env.step(action.item())
+        state, reward, done, _, info= env.step(action.item())
 
         actions.append(action)
         log_prob_actions.append(log_prob_action)
@@ -188,7 +187,7 @@ def evaluate(env, policy):
                 
         action = torch.argmax(action_prob, dim = -1)
                 
-        state, reward, done, _= env.step(action.item())
+        state, reward, done, _, info= env.step(action.item())
 
         episode_reward += reward
     return episode_reward
