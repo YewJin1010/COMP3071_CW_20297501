@@ -4,15 +4,18 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
-from collections import deque
+from collections import deque, namedtuple
 import random
 import matplotlib.pyplot as plt
 
-class MLP(nn.Module): 
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
-        super().__init__()
-        
-        self.net = nn.Sequential(
+Transition = namedtuple("Transition", ["state", "action", "reward", "next_state", "done"])
+
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
+        super(MLP, self).__init__()
+
+        # Define the layers
+        self.layers = nn.ModuleList([
             nn.Linear(input_dim, hidden_dim),
             nn.Dropout(dropout),
             nn.PReLU(),
@@ -20,11 +23,21 @@ class MLP(nn.Module):
             nn.Dropout(dropout),
             nn.PReLU(),
             nn.Linear(hidden_dim, output_dim)
-        )
+        ])
+
+        # Initialize weights (optional)
+        self._initialize_weights()
 
     def forward(self, x):
-        x = self.net(x)
+        for layer in self.layers:
+            x = layer(x)
         return x
+
+    def _initialize_weights(self):
+        for layer in self.layers:
+            if isinstance(layer, nn.Linear):
+                nn.init.xavier_uniform_(layer.weight)
+                nn.init.zeros_(layer.bias)
 
 class DQNAgent:
     def __init__(self, input_dim, hidden_dim ,output_dim, lr=0.0005, gamma=0.99, epsilon=1.0, epsilon_min=0.01, epsilon_decay=0.995):
@@ -40,35 +53,38 @@ class DQNAgent:
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
     def remember(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-
-    def act(self, state):
-        if np.random.rand() <= self.epsilon:
+        self.memory.append(Transition(state, action, reward, next_state, done))
+    
+    def act(self, state, epsilon=0.0):
+        if random.random() < epsilon:
             return random.randrange(self.output_dim)
         if isinstance(state, tuple):
             state = state[0]
         q_values = self.model(torch.FloatTensor(state))
         return torch.argmax(q_values).item()
 
-    def replay(self, BATCH_SIZE):
-        if len(self.memory) < BATCH_SIZE:
+    def replay(self, batch_size):
+        if len(self.memory) < batch_size:
             return
-        minibatch = random.sample(self.memory, BATCH_SIZE)
-        for state, action, reward, next_state, done in minibatch:
-            target = reward
-            if not done:
-                target = reward + self.gamma * torch.max(self.model(torch.FloatTensor(next_state))).item()
-            if isinstance(state, tuple):
-                state = state[0]
-            
-            target_f = self.model(torch.FloatTensor(state))
-            target_f[action] = target
-            self.optimizer.zero_grad()
-            loss = F.mse_loss(target_f, self.model(torch.FloatTensor(state)))
-            loss.backward()
-            self.optimizer.step()
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+
+        batch = random.sample(self.memory, batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+        # Flatten the states
+        states = torch.FloatTensor([s for state in states for s in state.flatten()])
+        next_states = torch.FloatTensor([s for state in next_states for s in state.flatten()])
+        
+        # Compute Q-values for current and next states
+        q_values = self.model(states)
+        next_q_values = self.model(next_states).detach()
+
+        targets = torch.tensor(rewards) + self.gamma * torch.max(next_q_values, dim=1).values
+        q_values[range(batch_size), actions] = targets
+
+        # Update the network
+        self.optimizer.zero_grad()
+        loss = nn.MSELoss()(q_values, self.model(states))
+        loss.backward()
+        self.optimizer.step()
 
 def train(env, agent):
     done = False
@@ -138,3 +154,5 @@ def train_dqn(train_env, test_env):
      
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, REWARD_THRESHOLD
+
+
