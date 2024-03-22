@@ -1,4 +1,4 @@
-import gymnasium as gym
+import gym
 import math
 import random
 import matplotlib

@@ -11,8 +11,6 @@ from time import sleep
 from collections import namedtuple, deque
 import matplotlib.pyplot as plt
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 # Policy network
 class QNet(nn.Module):
     # Policy Network
@@ -41,8 +39,8 @@ class DQN():
         self.tau = tau
 
         # model
-        self.net_eval = QNet(n_states, n_actions).to(device)
-        self.net_target = QNet(n_states, n_actions).to(device)
+        self.net_eval = QNet(n_states, n_actions)
+        self.net_target = QNet(n_states, n_actions)
         self.optimizer = optim.Adam(self.net_eval.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
@@ -50,8 +48,8 @@ class DQN():
         self.memory = ReplayBuffer(n_actions, mem_size, batch_size)
         self.counter = 0    # update cycle counter
 
-    def getAction(self, state, epsilon):
-        state = torch.from_numpy(state).float().unsqueeze(0).to(device)
+    def act(self, state, epsilon):
+        state = torch.from_numpy(state).float().unsqueeze(0)
 
         self.net_eval.eval()
         with torch.no_grad():
@@ -62,11 +60,11 @@ class DQN():
         if random.random() < epsilon:
             action = random.choice(np.arange(self.n_actions))
         else:
-            action = np.argmax(action_values.cpu().data.numpy())
+            action = np.argmax(action_values.data.numpy())
 
         return action
 
-    def save2memory(self, state, action, reward, next_state, done):
+    def remember(self, state, action, reward, next_state, done):
         self.memory.add(state, action, reward, next_state, done)
 
         self.counter += 1
@@ -113,11 +111,11 @@ class ReplayBuffer():
     def sample(self):
         experiences = random.sample(self.memory, k=self.batch_size)
 
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to(device)
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to(device)
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to(device)
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to(device)
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float().to(device)
+        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float()
+        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long()
+        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float()
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float()
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float()
 
         return (states, actions, rewards, next_states, dones)
 
@@ -132,9 +130,9 @@ def train(env, agent, n_episodes=2000, max_steps=1000, eps_start=1.0, eps_end=0.
         state = env.reset()
         score = 0
         for idx_step in range(max_steps):
-            action = agent.getAction(state, epsilon)
+            action = agent.act(state, epsilon)
             next_state, reward, done, _ = env.step(action)
-            agent.save2memory(state, action, reward, next_state, done)
+            agent.remember(state, action, reward, next_state, done)
             state = next_state
             score += reward
 
@@ -147,12 +145,6 @@ def train(env, agent, n_episodes=2000, max_steps=1000, eps_start=1.0, eps_end=0.
 
         pbar.set_postfix_str(f"Score: {score: 7.2f}, 100 score avg: {score_avg: 7.2f}")
         pbar.update(0)
-
-        # if (idx_epi+1) % 100 == 0:
-        #     print(" ")
-        #     sleep(0.1)
-
-        # Early stop
         if len(score_hist) >= 100:
             if score_avg >= target:
                 break
@@ -172,7 +164,7 @@ def testLander(env, agent, loop=3):
     for i in range(loop):
         state = env.reset()
         for idx_step in range(500):
-            action = agent.getAction(state, epsilon=0)
+            action = agent.act(state, epsilon=0)
             env.render()
             state, reward, done, _ = env.step(action)
             if done:
@@ -212,46 +204,4 @@ agent = DQN(
 score_hist = train(env, agent, n_episodes=EPISODES, target=TARGET_SCORE, chkpt=SAVE_CHKPT)
 plotScore(score_hist)
 
-if str(device) == "cuda":
-    torch.cuda.empty_cache()
-
 testLander(env, agent, loop=10)
-
-import os
-import imageio
-from PIL import Image, ImageDraw, ImageFont
-
-def TextOnImg(img, score):
-    img = Image.fromarray(img)
-    font = ImageFont.truetype('/Library/Fonts/arial.ttf', 18)
-    draw = ImageDraw.Draw(img)
-    draw.text((20, 20), f"Score={score: .2f}", font=font, fill=(255, 255, 255))
-
-    return np.array(img)
-
-def save_frames_as_gif(frames, filename, path="gifs/"):
-    if not os.path.exists(path):
-        os.makedirs(path)
-        
-    print("Saving gif...", end="")
-    imageio.mimsave(path + filename + ".gif", frames, fps=60)
-
-    print("Done!")
-
-def gym2gif(env, agent, filename="gym_animation", loop=3):
-    frames = []
-    for i in range(loop):
-        state = env.reset()
-        score = 0
-        for idx_step in range(500):
-            frame = env.render(mode="rgb_array")
-            frames.append(TextOnImg(frame, score))
-            action = agent.getAction(state, epsilon=0)
-            state, reward, done, _ = env.step(action)
-            score += reward
-            if done:
-                break
-    env.close()
-    save_frames_as_gif(frames, filename=filename)
-
-gym2gif(env, agent, loop=5)
