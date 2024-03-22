@@ -7,9 +7,9 @@ import gym
 import random
 from collections import deque
 
-class QNet(nn.Module):
+class QNetwork(nn.Module):
     def __init__(self, input_dim, output_dim):
-        super(QNet, self).__init__()
+        super(QNetwork, self).__init__()
         self.fc = nn.Sequential(
             nn.Linear(input_dim, 128),
             nn.ReLU(),
@@ -30,8 +30,8 @@ class DQN():
         self.batch_size = batch_size
 
         # Q-Networks
-        self.q_network = QNet(input_dim, output_dim)
-        self.target_network = QNet(input_dim, output_dim)
+        self.q_network = QNetwork(input_dim, output_dim)
+        self.target_network = QNetwork(input_dim, output_dim)
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
 
