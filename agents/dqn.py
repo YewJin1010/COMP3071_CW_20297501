@@ -116,7 +116,7 @@ def evaluate(env, agent):
 
 def train_dqn(train_env, test_env):
 
-    MAX_EPISODES = 1000
+    MAX_EPISODES = 2000
     BATCH_SIZE = 64
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
