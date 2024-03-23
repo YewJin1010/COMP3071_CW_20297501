@@ -4,6 +4,7 @@ import numpy as np
 import gym
 from gym.envs import box2d
 import matplotlib.pyplot as plt
+import os
 
 # Import agents
 from agents.ppo import train_ppo
@@ -21,6 +22,9 @@ def plot_results(train_rewards, test_rewards, reward_treshold, env, agent):
     plt.hlines(reward_treshold, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
+    # create a directory to save the results
+    save_path = f"results/{env}"
+    os.makedirs(save_path, exist_ok=True)
     plt.savefig(f"results/{env}/{agent}_{env}.png")
 
 print("Select environment to train: ")
@@ -47,6 +51,12 @@ if env == 1:
         wind_power=15.0,
         turbulence_power=1.5,
     )
+
+    SEED = 1234
+    train_env.seed(SEED)
+    test_env.seed(SEED+1)
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
     
     
 elif env == 2:

@@ -39,7 +39,7 @@ class ActorCritic(nn.Module):
         
         action_pred = self.actor(state)
         value_pred = self.critic(state)
-    
+        
         return action_pred, value_pred
 
 def init_weights(m):
@@ -58,17 +58,15 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     rewards = []
     done = False
     episode_reward = 0
-    time_step = 0
 
     state = env.reset()
 
-    while not done and time_step < MAX_EPISODE_DURATION:
+    while not done:
         if isinstance(state, tuple):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
 
-        #append state here, not after we get the next state from env.step()
         states.append(state)        
         action_pred, value_pred = policy(state)
         action_prob = F.softmax(action_pred, dim = -1)
@@ -84,12 +82,12 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         rewards.append(reward)
         
         episode_reward += reward
-        time_step += 1
     
     states = torch.cat(states)
     actions = torch.cat(actions)    
     log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
+
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
 
@@ -110,16 +108,14 @@ def calculate_returns(rewards, discount_factor, normalize = True):
     
     if normalize:
         returns = (returns - returns.mean()) / returns.std()
- 
     return returns
+
 def calculate_advantages(returns, values, normalize = True):
     advantages = returns - values
-    
     if normalize:
-        
         advantages = (advantages - advantages.mean()) / advantages.std()
-        
     return advantages
+
 def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip):
     
     total_policy_loss = 0 
@@ -165,8 +161,6 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
 def evaluate(env, policy):
     
     policy.eval()
-    
-    rewards = []
     done = False
     episode_reward = 0
 
@@ -199,7 +193,8 @@ def train_ppo(train_env, test_env):
     PRINT_EVERY = 10
     PPO_STEPS = 5
     PPO_CLIP = 0.2
-    
+    LEARNING_RATE = 0.0005
+
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
     OUTPUT_DIM = train_env.action_space.n
@@ -208,10 +203,7 @@ def train_ppo(train_env, test_env):
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
 
     policy = ActorCritic(actor, critic)
-
     policy.apply(init_weights)
-
-    LEARNING_RATE = 0.0005
 
     optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
 
