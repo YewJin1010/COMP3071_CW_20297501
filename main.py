@@ -46,6 +46,7 @@ elif agent == 3:
     train_rewards, test_rewards, REWARD_THRESHOLD = train_dqn(train_env, test_env)
 else:
     print("Invalid input")
+    exit()
 
 plt.figure(figsize=(12,8))
 plt.plot(test_rewards, label='Test Reward')

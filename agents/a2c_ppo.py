@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 
+EPSILON_CLIP = 0.2 # PPO clip parameter
+
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
@@ -23,6 +25,9 @@ class MLP(nn.Module):
         )
         
     def forward(self, x):
+        # if x is not tensor, convert it to tensor
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, dtype=torch.float32)
         x = self.net(x)
         return x
     
@@ -34,7 +39,7 @@ class ActorCritic(nn.Module):
         self.critic = critic
         
     def forward(self, state):
-        
+    
         action_pred = self.actor(state)
         value_pred = self.critic(state)
         
@@ -49,7 +54,8 @@ def train(env, policy, optimizer, discount_factor):
     
     policy.train()
     
-    log_prob_actions = []
+    log_prob_actions_old = []  # Store old log probabilities
+    log_prob_actions_new = []  # Store new log probabilities
     values = []
     rewards = []
     done = False
@@ -71,21 +77,29 @@ def train(env, policy, optimizer, discount_factor):
 
         action = dist.sample()
         
-        log_prob_action = dist.log_prob(action)
-        state, reward, done, _, info = env.step(action.item())
-        log_prob_actions.append(log_prob_action)
+        log_prob_action_old = dist.log_prob(action)
+        log_prob_actions_old.append(log_prob_action_old)
+
+        state, reward, done, _ = env.step(action.item())
+        
+        # Calculate new log probability of action
+        action_prob = F.softmax(policy.actor(state), dim=-1)
+        log_prob_action_new = distributions.Categorical(action_prob).log_prob(action)
+        log_prob_actions_new.append(log_prob_action_new)
+
         values.append(value_pred)
         rewards.append(reward)
 
         episode_reward += reward
     
-    log_prob_actions = torch.cat(log_prob_actions)
+    log_prob_actions_old = torch.cat(log_prob_actions_old)
+    log_prob_actions_new = torch.cat(log_prob_actions_new)
     values = torch.cat(values).squeeze(-1)
     
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
+    policy_loss, value_loss = update_policy(advantages, log_prob_actions_old, log_prob_actions_new, returns, values, optimizer)
 
     return policy_loss, value_loss, episode_reward
 
@@ -108,24 +122,29 @@ def calculate_advantages(returns, values, normalize = True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(advantages, log_prob_actions, returns, values, optimizer):
-        
+def update_policy(advantages, log_prob_actions_old, log_prob_actions_new, returns, values, optimizer):
     advantages = advantages.detach()
     returns = returns.detach()
-        
-    policy_loss = - (advantages * log_prob_actions).sum()
-    
-    value_loss = F.smooth_l1_loss(returns, values).sum()
-        
-    optimizer.zero_grad()
-    
-    policy_loss.backward()
-    value_loss.backward()
-    
-    optimizer.step()
-    
-    return policy_loss.item(), value_loss.item()
 
+    # Calculate ratio of new policy probability to old policy probability
+    ratio = torch.exp(log_prob_actions_new - log_prob_actions_old)
+
+    # Calculate surrogate objective
+    surrogate1 = ratio * advantages
+    surrogate2 = torch.clamp(ratio, 1.0 - EPSILON_CLIP, 1.0 + EPSILON_CLIP) * advantages
+    policy_loss = -torch.min(surrogate1, surrogate2).mean()
+
+    # Compute value loss
+    value_loss = F.smooth_l1_loss(returns, values).mean()
+
+    # Total loss
+    loss = policy_loss + value_loss
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    return policy_loss.item(), value_loss.item()
 
 def evaluate(env, policy):
     
@@ -151,7 +170,7 @@ def evaluate(env, policy):
                 
         action = torch.argmax(action_prob, dim = -1)
                 
-        state, reward, done, _, info = env.step(action.item())
+        state, reward, done, _ = env.step(action.item())
 
         episode_reward += reward
         
@@ -159,7 +178,7 @@ def evaluate(env, policy):
 
 def train_a2c_ppo(train_env, test_env): 
     
-    MAX_EPISODES = 1000
+    MAX_EPISODES = 2000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
@@ -204,3 +223,8 @@ def train_a2c_ppo(train_env, test_env):
      
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, REWARD_THRESHOLD
+
+train_env = gym.make('LunarLander-v2')
+test_env = gym.make('LunarLander-v2')
+
+train_rewards, test_rewards, reward_threshold = train_a2c_ppo(train_env, test_env)

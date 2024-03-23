@@ -7,6 +7,13 @@ import torch.optim as optim
 from collections import deque, namedtuple
 import gym
 
+BUFFER_SIZE = int(1e5)  # replay buffer size
+BATCH_SIZE = 64  # minibatch size
+GAMMA = 0.99  # discount factor
+TAU = 1e-3  # for soft update of target parameters
+LR = 0.0005  # learning rate
+UPDATE_EVERY = 4  # how often to update the network
+
 class QNetwork(nn.Module):
     def __init__(self, state_size, action_size, seed, fc1_unit=64, fc2_unit=64):
         super(QNetwork, self).__init__() 
@@ -45,13 +52,6 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.memory)
-
-BUFFER_SIZE = int(1e5)  # replay buffer size
-BATCH_SIZE = 64  # minibatch size
-GAMMA = 0.99  # discount factor
-TAU = 1e-3  # for soft update of target parameters
-LR = 0.0005  # learning rate
-UPDATE_EVERY = 4  # how often to update the network
 
 class Agent:
     def __init__(self, state_size, action_size, seed):
@@ -129,12 +129,11 @@ def evaluate(env, agent):
         state = next_state
     return total_reward
     
-def train_dqn(env):
+def train_dqn(train_env, test_env):
     MAX_EPISODES = 2000
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.0005
     max_timesteps = 1000 # maximum number of timesteps per episode
 
     agent = Agent(state_size=8, action_size=4, seed=0)
@@ -146,11 +145,11 @@ def train_dqn(env):
     epsilon_min = 0.01  # minimum epsilon
     
     for episode in range(1, MAX_EPISODES + 1):
-        state = env.reset()
+        state = train_env.reset()
         episode_reward = 0
         for t in range(max_timesteps):
             action = agent.act(state, epsilon)
-            next_state, reward, done, _ = env.step(action)
+            next_state, reward, done, _ = train_env.step(action)
             agent.step(state, action, reward, next_state, done)
             state = next_state
             episode_reward += reward
@@ -159,7 +158,7 @@ def train_dqn(env):
         train_rewards.append(episode_reward)  # save train reward
         epsilon = max(epsilon_min, epsilon_decay * epsilon)  # decrease epsilon
 
-        test_reward = evaluate(env, agent)
+        test_reward = evaluate(test_env, agent)
         test_rewards.append(test_reward)
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
@@ -174,9 +173,11 @@ def train_dqn(env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, REWARD_THRESHOLD
 
+"""
 # initialize environment
 env = gym.make('LunarLander-v2')
 env.seed(0)
 
 # run the training session
 rewards = train_dqn(env)
+"""
