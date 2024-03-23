@@ -72,7 +72,7 @@ def train(env, policy, optimizer, discount_factor):
         action = dist.sample()
         
         log_prob_action = dist.log_prob(action)
-        state, reward, done, _, info = env.step(action.item())
+        state, reward, done, _ = env.step(action.item())
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
@@ -90,30 +90,20 @@ def train(env, policy, optimizer, discount_factor):
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize = True):
-    
     returns = []
     R = 0
-    
     for r in reversed(rewards):
         R = r + R * discount_factor
         returns.insert(0, R)
-        
     returns = torch.tensor(returns)
-    
     if normalize:
-        
         returns = (returns - returns.mean()) / returns.std()
-        
     return returns
 
 def calculate_advantages(returns, values, normalize = True):
-
     advantages = returns - values
-
     if normalize:
-        
         advantages = (advantages - advantages.mean()) / advantages.std()
-        
     return advantages
 
 def update_policy(advantages, log_prob_actions, returns, values, optimizer):
@@ -159,7 +149,7 @@ def evaluate(env, policy):
                 
         action = torch.argmax(action_prob, dim = -1)
                 
-        state, reward, done, _, info = env.step(action.item())
+        state, reward, done, _ = env.step(action.item())
 
         episode_reward += reward
         

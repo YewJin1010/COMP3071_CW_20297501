@@ -44,10 +44,10 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor, epsilon_clip=0.2):
+def train(env, policy, optimizer, discount_factor, ppo_clip):
     policy.train()
     
-    log_prob_actions_old = []
+    log_prob_actions = []
     values = []
     rewards = []
     done = False
@@ -70,22 +70,22 @@ def train(env, policy, optimizer, discount_factor, epsilon_clip=0.2):
         
         state, reward, done, _ = env.step(action.item())
 
-        log_prob_actions_old.append(log_prob_action_old)
+        log_prob_actions.append(log_prob_action_old)
         values.append(value_pred)
         rewards.append(reward)
         episode_reward += reward
     
-    log_prob_actions_old = torch.cat(log_prob_actions_old)
+    log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
     
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(policy, state, action, advantages, log_prob_actions_old, returns, values, optimizer, epsilon_clip)
+    policy_loss, value_loss = update_policy(policy, state, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip)
 
     return policy_loss, value_loss, episode_reward
 
-def calculate_returns(rewards, discount_factor, normalize=True):
+def calculate_returns(rewards, discount_factor, normalize = True):
     returns = []
     R = 0
     for r in reversed(rewards):
@@ -93,30 +93,34 @@ def calculate_returns(rewards, discount_factor, normalize=True):
         returns.insert(0, R)
     returns = torch.tensor(returns)
     if normalize:
-        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        returns = (returns - returns.mean()) / returns.std()
     return returns
 
-def calculate_advantages(returns, values, normalize=True):
+def calculate_advantages(returns, values, normalize = True):
     advantages = returns - values
     if normalize:
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(policy, state, action, advantages, log_prob_actions_old, returns, values, optimizer, epsilon_clip):
+def update_policy(policy, state, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip):
     advantages = advantages.detach()
     returns = returns.detach()
 
-    action_pred, _ = policy(state)
+    action_pred, value_pred = policy(state)
+    value_pred = value_pred.squeeze(-1)
     action_prob = F.softmax(action_pred, dim=-1)
     dist = distributions.Categorical(action_prob)
-    log_prob_actions_new = dist.log_prob(action)
 
-    ratio = torch.exp(log_prob_actions_new - log_prob_actions_old)
-    surrogate1 = ratio * advantages
-    surrogate2 = torch.clamp(ratio, 1.0 - epsilon_clip, 1.0 + epsilon_clip) * advantages
-    policy_loss = -torch.min(surrogate1, surrogate2).mean()
+    new_log_prob_actions = dist.log_prob(action)
 
-    value_loss = F.smooth_l1_loss(returns, values).mean()
+    policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions)
+    
+    policy_loss_1 = policy_ratio * advantages
+    policy_loss_2 = torch.clamp(policy_ratio, min = 1.0 - ppo_clip, max = 1.0 + ppo_clip) * advantages
+    
+    policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
+
+    value_loss = F.smooth_l1_loss(returns, value_pred).mean()
 
     loss = policy_loss + value_loss
 
@@ -151,6 +155,7 @@ def train_a2c_ppo(train_env, test_env):
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
+    PPO_CLIP = 0.2
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -170,7 +175,7 @@ def train_a2c_ppo(train_env, test_env):
     test_rewards = []
     for episode in range(1, MAX_EPISODES+1):
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_CLIP)
         
         test_reward = evaluate(test_env, policy)
         
@@ -191,7 +196,3 @@ def train_a2c_ppo(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, REWARD_THRESHOLD
 
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
-train_rewards, test_rewards, reward_threshold = train_a2c_ppo(train_env, test_env)

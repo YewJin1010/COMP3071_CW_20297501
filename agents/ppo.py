@@ -96,16 +96,12 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize = True):
-    
     returns = []
     R = 0
-    
     for r in reversed(rewards):
         R = r + R * discount_factor
         returns.insert(0, R)
-        
     returns = torch.tensor(returns)
-    
     if normalize:
         returns = (returns - returns.mean()) / returns.std()
     return returns
@@ -129,13 +125,11 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
     
     for _ in range(ppo_steps):
                 
-        #get new log prob of actions for all input states
         action_pred, value_pred = policy(states)
         value_pred = value_pred.squeeze(-1)
         action_prob = F.softmax(action_pred, dim = -1)
         dist = distributions.Categorical(action_prob)
         
-        #new log prob using old actions
         new_log_prob_actions = dist.log_prob(actions)
         
         policy_ratio = (new_log_prob_actions - log_prob_actions).exp()

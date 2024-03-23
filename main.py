@@ -10,6 +10,7 @@ import os
 from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
+from agents.a2c_ppo import train_a2c_ppo
 
 
 def plot_results(train_rewards, test_rewards, reward_treshold, env, agent):
@@ -84,7 +85,7 @@ elif agent == 3:
     agent = "DQN"
     train_rewards, test_rewards, reward_treshold = train_dqn(train_env, test_env)
 elif agent == 4:
-    agent = ["PPO", "A2C", "DQN"]
+    agent = ["A2C", "DQN", "A2CPPO"]
     for a in agent:
         if a == "PPO":
             train_rewards, test_rewards, reward_treshold = train_ppo(train_env, test_env)
@@ -94,6 +95,9 @@ elif agent == 4:
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
         elif a == "DQN":
             train_rewards, test_rewards, reward_treshold = train_dqn(train_env, test_env)
+            plot_results(train_rewards, test_rewards, reward_treshold, env, a)
+        elif a == "A2CPPO":
+            train_rewards, test_rewards, reward_treshold = train_a2c_ppo(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
 else:
     print("Invalid input")
