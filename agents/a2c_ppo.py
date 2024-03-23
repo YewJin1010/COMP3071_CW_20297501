@@ -13,32 +13,30 @@ class MLP(nn.Module):
         
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
             nn.Dropout(dropout),
-            nn.PReLU(),
             nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
             nn.Dropout(dropout),
-            nn.PReLU(),
             nn.Linear(hidden_dim, output_dim)
         )
         
     def forward(self, x):
-        if not isinstance(x, torch.Tensor):
-            x = torch.tensor(x, dtype=torch.float32)
-        x = self.net(x)
-        return x
-    
+        return self.net(x)
+
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
         super().__init__()
-        
         self.actor = actor
         self.critic = critic
         
     def forward(self, state):
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, dtype=torch.float32)
         action_pred = self.actor(state)
         value_pred = self.critic(state)
         return action_pred, value_pred
-    
+
 def init_weights(m):
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
@@ -46,7 +44,6 @@ def init_weights(m):
 
 def train(env, policy, optimizer, discount_factor, ppo_clip):
     policy.train()
-    
     log_prob_actions = []
     values = []
     rewards = []
@@ -85,7 +82,7 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
 
     return policy_loss, value_loss, episode_reward
 
-def calculate_returns(rewards, discount_factor, normalize = True):
+def calculate_returns(rewards, discount_factor, normalize=True):
     returns = []
     R = 0
     for r in reversed(rewards):
@@ -96,7 +93,7 @@ def calculate_returns(rewards, discount_factor, normalize = True):
         returns = (returns - returns.mean()) / returns.std()
     return returns
 
-def calculate_advantages(returns, values, normalize = True):
+def calculate_advantages(returns, values, normalize=True):
     advantages = returns - values
     if normalize:
         advantages = (advantages - advantages.mean()) / advantages.std()
@@ -116,7 +113,7 @@ def update_policy(policy, state, action, advantages, log_prob_actions, returns, 
     new_log_prob_actions = dist.log_prob(action)
 
     # Compute policy ratio and clip it
-    policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions).exp()
+    policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions)
     clipped_policy_ratio = torch.clamp(policy_ratio, min=1.0 - ppo_clip, max=1.0 + ppo_clip)
 
     # Compute A2C-style policy loss

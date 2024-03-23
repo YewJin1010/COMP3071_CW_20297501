@@ -104,7 +104,7 @@ elif agent == 4:
     agent = "A2CPPO"
     train_rewards, test_rewards, reward_treshold, episode = train_a2c_ppo(train_env, test_env)
 elif agent == 5:
-    agent = ["A2C", "DQN", "A2CPPO"]
+    agent = ["PPO", "A2C", "DQN", "A2CPPO"]
     for a in agent:
         if a == "PPO":
             train_rewards, test_rewards, reward_treshold, episode = train_ppo(train_env, test_env)
