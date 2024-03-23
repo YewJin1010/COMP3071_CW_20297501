@@ -15,11 +15,11 @@ def initialise_lunar_lander():
     test_env = LunarLander()
 
     initialise_seeds(train_env, test_env)
-    
-    LunarLander.gravity = -12
-    LunarLander.enable_wind = True
-    LunarLander.wind_power = 20
-    LunarLander.turbulence_power = 2    
+        
+    LunarLander.gravity = -10.0
+    LunarLander.enable_wind = False
+    LunarLander.wind_power = 15.0
+    LunarLander.turbulence_power = 1.5    
 
     return train_env, test_env
 

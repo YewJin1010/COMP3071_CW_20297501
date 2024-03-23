@@ -166,7 +166,6 @@ def evaluate(env, policy):
     return episode_reward
 
 def train_a2c(train_env, test_env): 
-    
     MAX_EPISODES = 2000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 25
