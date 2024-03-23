@@ -5,6 +5,7 @@ import gym
 from gym.envs import box2d
 import matplotlib.pyplot as plt
 import os
+import datetime
 
 # Import agents
 from agents.ppo import train_ppo
@@ -13,7 +14,7 @@ from agents.dqn import train_dqn
 from agents.a2c_ppo import train_a2c_ppo
 
 
-def plot_results(train_rewards, test_rewards, reward_treshold, env, agent):
+def plot_results(train_rewards, test_rewards, reward_treshold, env, agent, now):
 
     plt.figure(figsize=(12,8))
     plt.plot(test_rewards, label='Test Reward')
@@ -24,9 +25,23 @@ def plot_results(train_rewards, test_rewards, reward_treshold, env, agent):
     plt.legend(loc='lower right')
     plt.grid()
     # create a directory to save the results
+    save_path = f"results/{env}/{agent}"
+    os.makedirs(save_path, exist_ok=True)
+    plt.savefig(f"results/{env}/{agent}/{agent}_{env}_{now}.png")
+
+def write_results(episodes, train_rewards, test_rewards, reward_treshold, env, agent, now):
+    # create a directory to save the results
     save_path = f"results/{env}"
     os.makedirs(save_path, exist_ok=True)
-    plt.savefig(f"results/{env}/{agent}_{env}.png")
+    # write results to a file
+    with open(f"results/{env}/{agent}/{agent}_{env}_{now}.txt", "w") as f:
+        f.write(f"Environment: {env}\n")
+        f.write(f"Agent: {agent}\n")
+        f.write(f"Episodes: {episodes}\n")
+        f.write(f"Train rewards: {train_rewards}\n")
+        f.write(f"Test rewards: {test_rewards}\n")
+        f.write(f"Reward treshold: {reward_treshold}\n")
+
 
 print("Select environment to train: ")
 print("1. LunarLander")
@@ -72,34 +87,43 @@ print("Select agent to train: ")
 print("1. PPO")
 print("2. A2C")
 print("3. DQN")
-print("4. All")
+print("4. A2CPPO")
+print("5. All")
 
 agent = int(input("Enter the number of the agent: "))
 if agent == 1:
     agent = "PPO"
-    train_rewards, test_rewards, reward_treshold = train_ppo(train_env, test_env)
+    train_rewards, test_rewards, reward_treshold, episode = train_ppo(train_env, test_env)
 elif agent == 2:
     agent = "A2C"
-    train_rewards, test_rewards, reward_treshold = train_a2c(train_env, test_env)
+    train_rewards, test_rewards, reward_treshold, episode = train_a2c(train_env, test_env)
 elif agent == 3:
     agent = "DQN"
-    train_rewards, test_rewards, reward_treshold = train_dqn(train_env, test_env)
+    train_rewards, test_rewards, reward_treshold, episode = train_dqn(train_env, test_env)
 elif agent == 4:
+    agent = "A2CPPO"
+    train_rewards, test_rewards, reward_treshold, episode = train_a2c_ppo(train_env, test_env)
+elif agent == 5:
     agent = ["A2C", "DQN", "A2CPPO"]
     for a in agent:
         if a == "PPO":
-            train_rewards, test_rewards, reward_treshold = train_ppo(train_env, test_env)
+            train_rewards, test_rewards, reward_treshold, episode = train_ppo(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
         elif a == "A2C":
-            train_rewards, test_rewards, reward_treshold = train_a2c(train_env, test_env)
+            train_rewards, test_rewards, reward_treshold, episode = train_a2c(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
         elif a == "DQN":
-            train_rewards, test_rewards, reward_treshold = train_dqn(train_env, test_env)
+            train_rewards, test_rewards, reward_treshold, episode = train_dqn(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
         elif a == "A2CPPO":
-            train_rewards, test_rewards, reward_treshold = train_a2c_ppo(train_env, test_env)
+            train_rewards, test_rewards, reward_treshold, episode = train_a2c_ppo(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
 else:
     print("Invalid input")
     exit()
+
+now = datetime.datetime.now()
+now = now.strftime("%d-%m-%Y_%H-%M-%S")
+plot_results(train_rewards, test_rewards, reward_treshold, env, agent, now)
+write_results(episode, train_rewards, test_rewards, reward_treshold, env, agent, now)
 

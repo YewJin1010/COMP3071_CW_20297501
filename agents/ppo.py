@@ -138,7 +138,6 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
         policy_loss_2 = torch.clamp(policy_ratio, min = 1.0 - ppo_clip, max = 1.0 + ppo_clip) * advantages
         
         policy_loss = - torch.min(policy_loss_1, policy_loss_2).mean()
-        
         value_loss = F.smooth_l1_loss(returns, value_pred).mean()
     
         optimizer.zero_grad()
@@ -222,7 +221,7 @@ def train_ppo(train_env, test_env):
         
         if mean_test_rewards >= REWARD_THRESHOLD:
             print(f'Reached reward threshold in {episode} episodes')
-            return train_rewards, test_rewards, REWARD_THRESHOLD
+            return train_rewards, test_rewards, REWARD_THRESHOLD, episode
      
     print("Did not reach reward threshold")
-    return train_rewards, test_rewards, REWARD_THRESHOLD
+    return train_rewards, test_rewards, REWARD_THRESHOLD, episode

@@ -3,12 +3,37 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as distributions
-
+import random
+from collections import deque, namedtuple
+import matplotlib.pyplot as plt
 import numpy as np
 import gym
 
+class ReplayBuffer:
+    def __init__(self, action_size, buffer_size, batch_size, seed):
+        self.action_size = action_size
+        self.memory = deque(maxlen=buffer_size)
+        self.batch_size = batch_size
+        self.transitions = namedtuple("Transitions", field_names=["state", "action", "reward", "next_state", "done"])
+        self.seed = random.seed(seed)
+
+    def add(self, state, action, reward, next_state, done):
+        e = self.transitions(state, action, reward, next_state, done)
+        self.memory.append(e)
+
+    def sample(self):
+        transitionss = random.sample(self.memory, k=self.batch_size)
+
+        states = torch.from_numpy(np.vstack([e.state for e in transitionss if e is not None])).float().to()
+        actions = torch.from_numpy(np.vstack([e.action for e in transitionss if e is not None])).long().to()
+        rewards = torch.from_numpy(np.vstack([e.reward for e in transitionss if e is not None])).float().to()
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in transitionss if e is not None])).float().to()
+        dones = torch.from_numpy(np.vstack([e.done for e in transitionss if e is not None]).astype(np.uint8)).float().to()
+
+        return states, actions, rewards, next_states, dones
+
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
         
         self.net = nn.Sequential(
@@ -22,8 +47,6 @@ class MLP(nn.Module):
         )
         
     def forward(self, x):
-        if not isinstance(x, torch.Tensor):
-            x = torch.tensor(x, dtype=torch.float32)
         x = self.net(x)
         return x
     
@@ -35,8 +58,10 @@ class ActorCritic(nn.Module):
         self.critic = critic
         
     def forward(self, state):
+        
         action_pred = self.actor(state)
         value_pred = self.critic(state)
+        
         return action_pred, value_pred
     
 def init_weights(m):
@@ -44,7 +69,8 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor, ppo_clip):
+def train(env, policy, optimizer, discount_factor):
+    
     policy.train()
     
     log_prob_actions = []
@@ -60,19 +86,21 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
-        action_pred, value_pred = policy(state)
+        action_pred = policy.actor(state)
+        value_pred = policy.critic(state)
 
         action_prob = F.softmax(action_pred, dim=-1)
+
         dist = distributions.Categorical(action_prob)
 
         action = dist.sample()
-        log_prob_action_old = dist.log_prob(action)
         
+        log_prob_action = dist.log_prob(action)
         state, reward, done, _ = env.step(action.item())
-
-        log_prob_actions.append(log_prob_action_old)
+        log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
+
         episode_reward += reward
     
     log_prob_actions = torch.cat(log_prob_actions)
@@ -81,7 +109,7 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(policy, state, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip)
+    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
 
     return policy_loss, value_loss, episode_reward
 
@@ -102,69 +130,61 @@ def calculate_advantages(returns, values, normalize = True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(policy, state, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip):
+def update_policy(advantages, log_prob_actions, returns, values, optimizer):
+        
     advantages = advantages.detach()
     returns = returns.detach()
-
-    # Get action probabilities and value predictions
-    action_pred, value_pred = policy(state)
-    value_pred = value_pred.squeeze(-1)
-    action_prob = F.softmax(action_pred, dim=-1)
-    dist = distributions.Categorical(action_prob)
-
-    # Calculate new log probabilities for the chosen actions
-    new_log_prob_actions = dist.log_prob(action)
-
-    # Compute policy ratio and clip it
-    policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions).exp()
-    clipped_policy_ratio = torch.clamp(policy_ratio, min=1.0 - ppo_clip, max=1.0 + ppo_clip)
-
-    # Compute A2C-style policy loss
-    policy_loss_1 = policy_ratio * advantages
-    policy_loss_2 = clipped_policy_ratio * advantages
-    policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
-
-    # Expand value predictions for consistency with returns
-    value_pred_expanded = value_pred.expand_as(returns)
-
-    # Compute value loss (smooth L1 loss)
-    value_loss = F.smooth_l1_loss(returns, value_pred_expanded).mean()
-
-    # Total loss
-    loss = policy_loss + value_loss
-
-    # Backpropagation and optimization
+        
+    policy_loss = - (advantages * log_prob_actions).sum()
+    
+    value_loss = F.smooth_l1_loss(returns, values).sum()
+        
     optimizer.zero_grad()
-    loss.backward()
+    
+    policy_loss.backward()
+    value_loss.backward()
+    
     optimizer.step()
-
+    
     return policy_loss.item(), value_loss.item()
 
+
 def evaluate(env, policy):
+    
     policy.eval()
+    
+    rewards = []
     done = False
     episode_reward = 0
+
     state = env.reset()
 
     while not done:
+        
         if isinstance(state, tuple):
             state, _ = state
         state = torch.FloatTensor(state).unsqueeze(0)
+
         with torch.no_grad():
+        
             action_pred, _ = policy(state)
-            action_prob = F.softmax(action_pred, dim=-1)
-        action = torch.argmax(action_prob, dim=-1)
+
+            action_prob = F.softmax(action_pred, dim = -1)
+                
+        action = torch.argmax(action_prob, dim = -1)
+                
         state, reward, done, _ = env.step(action.item())
+
         episode_reward += reward
+        
     return episode_reward
 
-def train_a2c_ppo(train_env, test_env): 
+def train_a2c_buffer(train_env, test_env): 
     MAX_EPISODES = 2000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
-    PPO_CLIP = 0.2
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -178,13 +198,14 @@ def train_a2c_ppo(train_env, test_env):
 
     LEARNING_RATE = 0.0005
 
-    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
 
     train_rewards = []
     test_rewards = []
+
     for episode in range(1, MAX_EPISODES+1):
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_CLIP)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
         
         test_reward = evaluate(test_env, policy)
         
@@ -200,8 +221,7 @@ def train_a2c_ppo(train_env, test_env):
         
         if mean_test_rewards >= REWARD_THRESHOLD:
             print(f'Reached reward threshold in {episode} episodes')
-            return train_rewards, test_rewards, REWARD_THRESHOLD, episode
+            return train_rewards, test_rewards, REWARD_THRESHOLD
      
     print("Did not reach reward threshold")
-    return train_rewards, test_rewards, REWARD_THRESHOLD, episode
-
+    return train_rewards, test_rewards, REWARD_THRESHOLD

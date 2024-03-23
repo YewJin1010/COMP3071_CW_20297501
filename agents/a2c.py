@@ -197,7 +197,7 @@ def train_a2c(train_env, test_env):
         
         if mean_test_rewards >= REWARD_THRESHOLD:
             print(f'Reached reward threshold in {episode} episodes')
-            return train_rewards, test_rewards, REWARD_THRESHOLD
+            return train_rewards, test_rewards, REWARD_THRESHOLD, episode
      
     print("Did not reach reward threshold")
-    return train_rewards, test_rewards, REWARD_THRESHOLD
+    return train_rewards, test_rewards, REWARD_THRESHOLD, episode
