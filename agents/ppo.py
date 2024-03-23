@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 
+MAX_EPISODE_DURATION = 300 
+
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
@@ -56,28 +58,24 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     rewards = []
     done = False
     episode_reward = 0
+    time_step = 0
 
     state = env.reset()
 
-    while not done:
+    while not done and time_step < MAX_EPISODE_DURATION:
         if isinstance(state, tuple):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
 
         #append state here, not after we get the next state from env.step()
-        states.append(state)
-        
+        states.append(state)        
         action_pred, value_pred = policy(state)
-   
         action_prob = F.softmax(action_pred, dim = -1)
-                
         dist = distributions.Categorical(action_prob)
-        
-        action = dist.sample()
-        
+
+        action = dist.sample()        
         log_prob_action = dist.log_prob(action)
-        
         state, reward, done, _, info= env.step(action.item())
 
         actions.append(action)
@@ -86,6 +84,7 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         rewards.append(reward)
         
         episode_reward += reward
+        time_step += 1
     
     states = torch.cat(states)
     actions = torch.cat(actions)    
