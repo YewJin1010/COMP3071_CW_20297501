@@ -12,6 +12,7 @@ from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
 from agents.a2c_ppo import train_a2c_ppo
+from a2c_ppo_2 import train_a2c_ppo_2
 
 
 def plot_results(train_rewards, test_rewards, reward_treshold, env, agent, now):

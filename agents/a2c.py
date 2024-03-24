@@ -112,7 +112,6 @@ def update_policy(advantages, log_prob_actions, returns, values, optimizer):
     returns = returns.detach()
         
     policy_loss = - (advantages * log_prob_actions).sum()
-    
     value_loss = F.smooth_l1_loss(returns, values).sum()
         
     optimizer.zero_grad()
