@@ -59,18 +59,17 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
-        
         states.append(state)
         action_pred, value_pred = policy(state)
         action_prob = F.softmax(action_pred, dim=-1)
         dist = distributions.Categorical(action_prob)
 
         action = dist.sample()
-        log_prob_action_old = dist.log_prob(action)
+        log_prob_action = dist.log_prob(action)
         
         state, reward, done, _ = env.step(action.item())
 
-        log_prob_actions.append(log_prob_action_old)
+        log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
         episode_reward += reward
@@ -82,6 +81,7 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
+    # Compute policy and value losses using a clipped surrogate objective
     policy_loss, value_loss = update_policy(policy, states, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip)
 
     return policy_loss, value_loss, episode_reward
@@ -92,7 +92,7 @@ def calculate_returns(rewards, discount_factor, normalize=True):
     for r in reversed(rewards):
         R = r + R * discount_factor
         returns.insert(0, R)
-    returns = torch.tensor(returns)
+    returns = torch.tensor(returns, dtype=torch.float32)
     if normalize:
         returns = (returns - returns.mean()) / returns.std()
     return returns
@@ -120,7 +120,7 @@ def update_policy(policy, states, action, advantages, log_prob_actions, returns,
     policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions)
     clipped_policy_ratio = torch.clamp(policy_ratio, min=1.0 - ppo_clip, max=1.0 + ppo_clip)
 
-    # Compute A2C-style policy loss
+    # Compute PPO-style policy loss
     policy_loss_1 = policy_ratio * advantages
     policy_loss_2 = clipped_policy_ratio * advantages
     policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
@@ -142,21 +142,32 @@ def update_policy(policy, states, action, advantages, log_prob_actions, returns,
     return policy_loss.item(), value_loss.item()
 
 def evaluate(env, policy):
+    
     policy.eval()
+    
     done = False
     episode_reward = 0
+
     state = env.reset()
 
     while not done:
+        
         if isinstance(state, tuple):
             state, _ = state
         state = torch.FloatTensor(state).unsqueeze(0)
+
         with torch.no_grad():
+        
             action_pred, _ = policy(state)
-            action_prob = F.softmax(action_pred, dim=-1)
-        action = torch.argmax(action_prob, dim=-1)
+
+            action_prob = F.softmax(action_pred, dim = -1)
+                
+        action = torch.argmax(action_prob, dim = -1)
+                
         state, reward, done, _ = env.step(action.item())
+
         episode_reward += reward
+        
     return episode_reward
 
 def train_a2c_ppo(train_env, test_env): 
@@ -166,6 +177,7 @@ def train_a2c_ppo(train_env, test_env):
     REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
     PPO_CLIP = 0.2
+    LEARNING_RATE = 0.0005
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -176,8 +188,6 @@ def train_a2c_ppo(train_env, test_env):
 
     policy = ActorCritic(actor, critic)
     policy.apply(init_weights)
-
-    LEARNING_RATE = 0.0005
 
     optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 

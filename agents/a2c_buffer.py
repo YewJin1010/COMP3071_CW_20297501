@@ -69,10 +69,9 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor):
-    
+def train(env, policy, optimizer, discount_factor, replay_buffer):
     policy.train()
-    
+
     log_prob_actions = []
     values = []
     rewards = []
@@ -90,29 +89,31 @@ def train(env, policy, optimizer, discount_factor):
         value_pred = policy.critic(state)
 
         action_prob = F.softmax(action_pred, dim=-1)
-
         dist = distributions.Categorical(action_prob)
 
         action = dist.sample()
-        
+
         log_prob_action = dist.log_prob(action)
         state, reward, done, _ = env.step(action.item())
+
+        replay_buffer.add(state, action.item(), reward, state, done)
+
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
 
         episode_reward += reward
-    
+
     log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
-    
+
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
+
+    policy_loss, value_loss = update_policy(policy, log_prob_actions, advantages, returns, optimizer)
+
+    return policy_loss.item(), value_loss.item(), episode_reward
     
-    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
-
-    return policy_loss, value_loss, episode_reward
-
 def calculate_returns(rewards, discount_factor, normalize = True):
     returns = []
     R = 0
@@ -185,6 +186,7 @@ def train_a2c_buffer(train_env, test_env):
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
+    LEARNING_RATE = 0.0001
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -196,7 +198,10 @@ def train_a2c_buffer(train_env, test_env):
     policy = ActorCritic(actor, critic)
     policy.apply(init_weights)
 
-    LEARNING_RATE = 0.0005
+    BUFFER_SIZE = 10000  # replay buffer size
+    BATCH_SIZE = 128  # minibatch size
+    BUFFER_SEED = 0 
+    replay_buffer = ReplayBuffer(OUTPUT_DIM, BUFFER_SIZE, BATCH_SIZE, BUFFER_SEED)
 
     optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
 
@@ -205,7 +210,7 @@ def train_a2c_buffer(train_env, test_env):
 
     for episode in range(1, MAX_EPISODES+1):
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, replay_buffer)
         
         test_reward = evaluate(test_env, policy)
         

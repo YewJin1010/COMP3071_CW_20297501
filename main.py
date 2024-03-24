@@ -12,8 +12,7 @@ from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
 from agents.a2c_ppo import train_a2c_ppo
-from a2c_ppo_2 import train_a2c_ppo_2
-
+from agents.a2c_buffer import train_a2c_buffer
 
 def plot_results(train_rewards, test_rewards, reward_treshold, env, agent, now):
 
@@ -88,8 +87,9 @@ print("Select agent to train: ")
 print("1. PPO")
 print("2. A2C")
 print("3. DQN")
-print("4. A2CPPO")
-print("5. All")
+print("4. A2CPPO") # Not functional
+print("5. A2CBuffer")
+print("6. All")
 
 agent = int(input("Enter the number of the agent: "))
 if agent == 1:
@@ -105,7 +105,10 @@ elif agent == 4:
     agent = "A2CPPO"
     train_rewards, test_rewards, reward_treshold, episode = train_a2c_ppo(train_env, test_env)
 elif agent == 5:
-    agent = ["PPO", "A2C", "DQN", "A2CPPO"]
+    agent = "A2CBuffer"
+    train_rewards, test_rewards, reward_treshold, episode = train_a2c_buffer(train_env, test_env)
+elif agent == 6:
+    agent = ["PPO", "A2C", "DQN", "A2CPPO", "A2CBuffer"]
     for a in agent:
         if a == "PPO":
             train_rewards, test_rewards, reward_treshold, episode = train_ppo(train_env, test_env)
@@ -118,6 +121,9 @@ elif agent == 5:
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
         elif a == "A2CPPO":
             train_rewards, test_rewards, reward_treshold, episode = train_a2c_ppo(train_env, test_env)
+            plot_results(train_rewards, test_rewards, reward_treshold, env, a)
+        elif a == "A2CBuffer":
+            train_rewards, test_rewards, reward_treshold, episode = train_a2c_buffer(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_treshold, env, a)
 else:
     print("Invalid input")

@@ -128,7 +128,6 @@ def evaluate(env, policy):
     
     policy.eval()
     
-    rewards = []
     done = False
     episode_reward = 0
 
@@ -160,6 +159,7 @@ def train_a2c(train_env, test_env):
     N_TRIALS = 25
     REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
+    LEARNING_RATE = 0.0005
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -170,8 +170,6 @@ def train_a2c(train_env, test_env):
 
     policy = ActorCritic(actor, critic)
     policy.apply(init_weights)
-
-    LEARNING_RATE = 0.0005
 
     optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
 
