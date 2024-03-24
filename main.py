@@ -57,6 +57,7 @@ if env == 1:
         enable_wind=False,
         wind_power=15.0,
         turbulence_power=1.5,
+        #render_mode="human",
     )
 
     test_env = gym.make(
@@ -66,6 +67,7 @@ if env == 1:
         enable_wind=False,
         wind_power=15.0,
         turbulence_power=1.5,
+        #render_mode="human",
     )
 
     SEED = 1234
@@ -109,22 +111,34 @@ elif agent == 5:
     train_rewards, test_rewards, reward_treshold, episode = train_a2c_buffer(train_env, test_env)
 elif agent == 6:
     agent = ["PPO", "A2C", "DQN", "A2CPPO", "A2CBuffer"]
+    now = datetime.datetime.now()
+    now = now.strftime("%d-%m-%Y_%H-%M-%S")
     for a in agent:
+        
         if a == "PPO":
             train_rewards, test_rewards, reward_treshold, episode = train_ppo(train_env, test_env)
-            plot_results(train_rewards, test_rewards, reward_treshold, env, a)
+            plot_results(train_rewards, test_rewards, reward_treshold, env, a, now)
+            write_results(episode, train_rewards, test_rewards, reward_treshold, env, a, now)
+
         elif a == "A2C":
             train_rewards, test_rewards, reward_treshold, episode = train_a2c(train_env, test_env)
-            plot_results(train_rewards, test_rewards, reward_treshold, env, a)
+            plot_results(train_rewards, test_rewards, reward_treshold, env, a, now)
+            write_results(episode, train_rewards, test_rewards, reward_treshold, env, a, now)
+
         elif a == "DQN":
             train_rewards, test_rewards, reward_treshold, episode = train_dqn(train_env, test_env)
-            plot_results(train_rewards, test_rewards, reward_treshold, env, a)
+            plot_results(train_rewards, test_rewards, reward_treshold, env, a, now)
+            write_results(episode, train_rewards, test_rewards, reward_treshold, env, a, now)
+
         elif a == "A2CPPO":
             train_rewards, test_rewards, reward_treshold, episode = train_a2c_ppo(train_env, test_env)
-            plot_results(train_rewards, test_rewards, reward_treshold, env, a)
+            plot_results(train_rewards, test_rewards, reward_treshold, env, a, now)
+            write_results(episode, train_rewards, test_rewards, reward_treshold, env, a, now)
+
         elif a == "A2CBuffer":
             train_rewards, test_rewards, reward_treshold, episode = train_a2c_buffer(train_env, test_env)
-            plot_results(train_rewards, test_rewards, reward_treshold, env, a)
+            plot_results(train_rewards, test_rewards, reward_treshold, env, a, now)
+            write_results(episode, train_rewards, test_rewards, reward_treshold, env, a, now)
 else:
     print("Invalid input")
     exit()
