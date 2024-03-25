@@ -9,7 +9,7 @@ import numpy as np
 import gym
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.5):
         super().__init__()
         
         self.net = nn.Sequential(
@@ -62,6 +62,7 @@ def train(env, policy, optimizer, discount_factor):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
+        
         action_pred = policy.actor(state)
         value_pred = policy.critic(state)
 
@@ -198,3 +199,4 @@ def train_a2c(train_env, test_env):
      
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, REWARD_THRESHOLD, episode
+
