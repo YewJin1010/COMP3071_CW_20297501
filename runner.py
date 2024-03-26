@@ -42,7 +42,7 @@ def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, 
         f.write(f"Reward threshold: {reward_threshold}\n")
 
 # Define parameter ranges
-gravity_values = [-10.0, -5.0, 0.0]  # values for gravity
+gravity_values = [-10.0, -5.0, 1.0]  # values for gravity
 wind_power_values = [0.0, 15.0, 20.0]  # values for wind power
 turbulence_power_values = [0.0, 1.0, 2.0]  # values for turbulence power
 
