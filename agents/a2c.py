@@ -58,8 +58,8 @@ def train(env, policy, optimizer, discount_factor):
     state = env.reset()
 
     while not done:
-        if isinstance(state, tuple):
-            state, _ = state
+        #if isinstance(state, tuple):
+        #    state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
         
