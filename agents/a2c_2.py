@@ -129,7 +129,7 @@ class A2C(nn.Module):
         return -(torch.sum(action_p_vals * advantage)), critic_loss(G, V)
 
 def train_a2c(env): 
-    LEARNING_RATE = int(1e5)
+    LEARNING_RATE = .01
     MAX_EPISODES = 2000
     REWARD_THRESHOLD = 200
     N_TRIALS = 25
