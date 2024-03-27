@@ -15,7 +15,6 @@ train_env.seed(SEED)
 test_env.seed(SEED+1)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
-
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
@@ -60,8 +59,7 @@ def init_weights(m):
         m.bias.data.fill_(0)
 policy.apply(init_weights)
 
-
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.0005
 
 optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
 def train(env, policy, optimizer, discount_factor):
@@ -146,6 +144,7 @@ def update_policy(advantages, log_prob_actions, returns, values, optimizer):
     
     policy_loss.backward()
     value_loss.backward()
+    
     optimizer.step()
     
     return policy_loss.item(), value_loss.item()
@@ -176,7 +175,7 @@ def evaluate(env, policy):
         episode_reward += reward
         
     return episode_reward
-MAX_EPISODES = 2000
+MAX_EPISODES = 1_000
 DISCOUNT_FACTOR = 0.99
 N_TRIALS = 25
 REWARD_THRESHOLD = 200

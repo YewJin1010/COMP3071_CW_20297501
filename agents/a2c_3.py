@@ -45,16 +45,14 @@ def train(env, model, optimizer, discount_factor=0.99, entropy_coef=0.001, grad_
         next_state_tensor = torch.tensor(next_state, dtype=torch.float32)
         _, next_value = model(next_state_tensor)
 
-
-        returns = torch.tensor(returns, dtype=torch.float32).detach()
-        values_tensor = torch.tensor(values, dtype=torch.float32)  # Convert values list to tensor
-        advantages = returns - values_tensor  
+        # Compute advantage
+        advantage = reward + 0.99 * next_value - value
 
         # Actor loss
-        actor_loss = (-dist.log_prob(action) * advantages.detach()).mean() 
+        actor_loss = -dist.log_prob(action) * advantage.detach()
 
         # Critic loss
-        critic_loss = mse_loss(value, returns).mean() 
+        critic_loss = mse_loss(value, reward + 0.99 * next_value)
 
         # Total loss with entropy bonus
         entropy = -(action_probs * torch.log(action_probs)).sum()
