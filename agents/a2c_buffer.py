@@ -51,6 +51,7 @@ class ReplayBuffer:
         dones = np.array(dones)
         
         return states, actions, rewards, next_states, dones
+    
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
@@ -104,13 +105,13 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
         
         state = torch.FloatTensor(state).unsqueeze(0)
         states.append(state)
+        action = torch.tensor(action).unsqueeze(0)  # Convert action to tensor
         action_pred = policy.actor(state)
         value_pred = policy.critic(state)
 
         action_prob = F.softmax(action_pred, dim=-1)
         dist = distributions.Categorical(action_prob)
 
-        action = torch.tensor(action).unsqueeze(0)  # Convert action to tensor
         actions.append(action)
         log_prob_action = dist.log_prob(action)
         log_prob_actions.append(log_prob_action)
@@ -149,14 +150,12 @@ def calculate_advantages(returns, values, normalize = True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer):
+def update_policy(policy, state, states, actions, log_prob_actions, advantages, returns, optimizer):
     
     total_policy_loss = 0 
     total_value_loss = 0
 
-    policy.train()
-
-    action_pred, value_pred = policy(states)
+    action_pred, value_pred = policy.actor(state)
     action_prob = F.softmax(action_pred, dim=-1)
     dist = distributions.Categorical(action_prob)
     
@@ -180,7 +179,8 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
 
 def evaluate(env, policy, epsilon):
     
-    policy.eval()
+    policy.actor.eval()
+    policy.critic.eval()
     
     rewards = []
     done = False
@@ -204,8 +204,11 @@ def evaluate(env, policy, epsilon):
         state, reward, done, _ = env.step(action.item())
 
         episode_reward += reward
-        
+    
+    policy.actor.train()  # Switch back to training mode
+    policy.critic.train()  # Switch back to training mode
     return episode_reward
+
 
 
 def train_a2c_buffer(train_env, test_env): 
