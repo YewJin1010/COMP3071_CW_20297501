@@ -98,10 +98,12 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
     values = []
     rewards = []
     actions = []
+    states = []
     
     for state, action, reward, next_state, done in zip(batch_states, batch_actions, batch_rewards, batch_next_states, batch_dones):
         
         state = torch.FloatTensor(state).unsqueeze(0)
+        states.append(state)
         action_pred = policy.actor(state)
         value_pred = policy.critic(state)
 
