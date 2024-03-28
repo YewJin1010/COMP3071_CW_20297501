@@ -189,7 +189,7 @@ def train_a2c(train_env, test_env):
         if episode % PRINT_EVERY == 0:
         
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
-        
+
         if mean_test_rewards >= REWARD_THRESHOLD:
             print(f'Reached reward threshold in {episode} episodes')
             return train_rewards, test_rewards, REWARD_THRESHOLD, episode

@@ -40,13 +40,13 @@ class ReplayBuffer:
         self.memory.append(e)
 
     def sample(self):
-        transitionss = random.sample(self.memory, k=self.batch_size)
+        transitions = random.sample(self.memory, k=self.batch_size)
 
-        states = T.from_numpy(np.vstack([e.state for e in transitionss if e is not None])).float().to()
-        actions = T.from_numpy(np.vstack([e.action for e in transitionss if e is not None])).long().to()
-        rewards = T.from_numpy(np.vstack([e.reward for e in transitionss if e is not None])).float().to()
-        next_states = T.from_numpy(np.vstack([e.next_state for e in transitionss if e is not None])).float().to()
-        dones = T.from_numpy(np.vstack([e.done for e in transitionss if e is not None]).astype(np.uint8)).float().to()
+        states = T.from_numpy(np.vstack([e.state for e in transitions if e is not None])).float().to()
+        actions = T.from_numpy(np.vstack([e.action for e in transitions if e is not None])).long().to()
+        rewards = T.from_numpy(np.vstack([e.reward for e in transitions if e is not None])).float().to()
+        next_states = T.from_numpy(np.vstack([e.next_state for e in transitions if e is not None])).float().to()
+        dones = T.from_numpy(np.vstack([e.done for e in transitions if e is not None]).astype(np.uint8)).float().to()
 
         return states, actions, rewards, next_states, dones
 
@@ -78,13 +78,14 @@ class Agent:
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
             if len(self.memory) > BATCH_SIZE:
-                transitionss = self.memory.sample()
-                self.learn(transitionss, GAMMA)
+                transitions = self.memory.sample()
+                self.learn(transitions, GAMMA)
 
     def act(self, state, epsilon=0.):
         state = T.from_numpy(state).float().unsqueeze(0)
         self.qnetwork_local.eval()
         with T.no_grad():
+
             action_values = self.qnetwork_local(state)
         self.qnetwork_local.train()
 
@@ -94,8 +95,8 @@ class Agent:
         else:
             return random.choice(np.arange(self.action_size))
 
-    def learn(self, transitionss, gamma):
-        states, actions, rewards, next_states, dones = transitionss
+    def learn(self, transitions, gamma):
+        states, actions, rewards, next_states, dones = transitions
 
         # Get max predicted Q values (for next states) from target model
         q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
@@ -136,12 +137,18 @@ def train_dqn(train_env, test_env):
     PRINT_EVERY = 10
     max_timesteps = 1000 # maximum number of timesteps per episode
 
-    agent = Agent(state_size=8, action_size=4, seed=0)
+    # Initialize the agent based on the environment
+    if train_env.unwrapped.spec.id == "LunarLander-v2":
+        agent = Agent(state_size=8, action_size=4, seed=0)
+    elif train_env.unwrapped.spec.id == "CartPole-v0":
+        agent = Agent(state_size=4, action_size=2, seed=0)
+    else:
+        raise ValueError("Unsupported environment")
 
     train_rewards = []  # list containing rewards from each episode
     test_rewards = []  # list containing rewards from each test episode
     epsilon = 1.0  # initialize epsilon
-    epsilon_decay = 0.995  # epsilon decay
+    epsilon_decay = 0.99  # epsilon decay
     epsilon_min = 0.01  # minimum epsilon
     
     for episode in range(1, MAX_EPISODES + 1):
