@@ -205,3 +205,12 @@ for episode in range(1, MAX_EPISODES+1):
         print(f'Reached reward threshold in {episode} episodes')
         
         break
+
+plt.figure(figsize=(12,8))
+plt.plot(test_rewards, label='Test Reward')
+plt.plot(train_rewards, label='Train Reward')
+plt.xlabel('Episode', fontsize=20)
+plt.ylabel('Reward', fontsize=20)
+plt.hlines(REWARD_THRESHOLD, 0, len(test_rewards), color='r')
+plt.legend(loc='lower right')
+plt.grid()
