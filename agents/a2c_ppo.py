@@ -46,6 +46,7 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
     policy.train()
 
     states = []
+    actions = []
     log_prob_actions = []
     values = []
     rewards = []
@@ -69,12 +70,14 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
         
         state, reward, done, _ = env.step(action.item())
 
+        actions.append(action)
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
         episode_reward += reward
     
     states = torch.cat(states)
+    actions = torch.cat(actions)    
     log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
     
@@ -103,7 +106,7 @@ def calculate_advantages(returns, values, normalize=True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(policy, states, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip):
+def update_policy(policy, states, actions, advantages, log_prob_actions, returns, values, optimizer, ppo_clip):
     advantages = advantages.detach()
     returns = returns.detach()
 
@@ -114,7 +117,7 @@ def update_policy(policy, states, action, advantages, log_prob_actions, returns,
     dist = distributions.Categorical(action_prob)
 
     # Calculate new log probabilities for the chosen actions
-    new_log_prob_actions = dist.log_prob(action)
+    new_log_prob_actions = dist.log_prob(actions)
 
     # Compute policy ratio and clip it
     policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions)

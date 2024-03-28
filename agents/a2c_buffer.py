@@ -97,6 +97,7 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
     log_prob_actions = []
     values = []
     rewards = []
+    actions = []
     
     for state, action, reward, next_state, done in zip(batch_states, batch_actions, batch_rewards, batch_next_states, batch_dones):
         
@@ -108,7 +109,7 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
         dist = distributions.Categorical(action_prob)
 
         action = torch.tensor(action).unsqueeze(0)  # Convert action to tensor
-        
+        actions.append(action)
         log_prob_action = dist.log_prob(action)
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
@@ -117,13 +118,15 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
         # Add transition to replay buffer
         replay_buffer.add(state, action.item(), reward, next_state, done)
 
+    states = torch.cat(states)
+    actions = torch.cat(actions)    
     log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
     
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
+    policy_loss, value_loss = update_policy(advantages, states, actions ,log_prob_actions, advantages, returns, optimizer)
 
     return policy_loss, value_loss, np.sum(batch_rewards)
 
@@ -144,23 +147,33 @@ def calculate_advantages(returns, values, normalize = True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(advantages, log_prob_actions, returns, values, optimizer):
-        
-    advantages = advantages.detach()
-    returns = returns.detach()
-        
-    policy_loss = - (advantages * log_prob_actions).sum()
+def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer):
     
-    value_loss = F.smooth_l1_loss(returns, values).sum()
-        
+    total_policy_loss = 0 
+    total_value_loss = 0
+
+    policy.train()
+
+    action_pred, value_pred = policy(states)
+    action_prob = F.softmax(action_pred, dim=-1)
+    dist = distributions.Categorical(action_prob)
+    
+    new_log_prob_actions = dist.log_prob(actions)
+
+    policy_loss = -(advantages * (new_log_prob_actions - log_prob_actions.detach())).mean()
+    value_loss = F.smooth_l1_loss(returns, value_pred.squeeze(-1)).mean()
+
     optimizer.zero_grad()
-    
+
     policy_loss.backward()
     value_loss.backward()
-    
+
     optimizer.step()
-    
-    return policy_loss.item(), value_loss.item()
+
+    total_policy_loss += policy_loss.item()
+    total_value_loss += value_loss.item()
+
+    return total_policy_loss, total_value_loss
 
 
 def evaluate(env, policy, epsilon):
