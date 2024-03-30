@@ -1,0 +1,7 @@
+Environment: CartPole
+Agent: A2C
+Parameters: 
+Episodes: 1
+Train rewards: [16.0]
+Test rewards: [200.0]
+Reward threshold: 200

@@ -32,19 +32,6 @@ class ReplayBuffer:
        
         states, actions, rewards, next_states, dones = zip(*batch)
         states = np.array([s.numpy().squeeze() if isinstance(s, torch.Tensor) else s for s in states])
-
-        """
-        try: 
-            #states = np.array([s.numpy() if isinstance(s, torch.Tensor) else s for s in states])
-            states = np.array([s.numpy().squeeze() if isinstance(s, torch.Tensor) else s for s in states])
-
-        except Exception as e:
-            print(e)
-            print("states: ", states)
-            for s in states:
-                print("Shape of s:", s.shape)  # Print the shape of each element in states
-            raise e  
-        """
         actions = np.array(actions)
         rewards = np.array(rewards)
         next_states = np.array(next_states)
@@ -129,7 +116,7 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(advantages, states, actions ,log_prob_actions, advantages, returns, optimizer)
+    policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer)
 
     return policy_loss, value_loss, np.sum(batch_rewards)
 
@@ -150,12 +137,13 @@ def calculate_advantages(returns, values, normalize = True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(policy, state, states, actions, log_prob_actions, advantages, returns, optimizer):
+def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer):
     
     total_policy_loss = 0 
     total_value_loss = 0
 
-    action_pred, value_pred = policy.actor(state)
+    action_pred = policy.actor(states)
+    value_pred = policy.critic(states)
     action_prob = F.softmax(action_pred, dim=-1)
     dist = distributions.Categorical(action_prob)
     
@@ -201,6 +189,7 @@ def evaluate(env, policy, epsilon):
                 action_prob = F.softmax(action_pred, dim=-1)
                 action = torch.argmax(action_prob, dim=-1)
 
+        action = torch.tensor(action) if not isinstance(action, torch.Tensor) else action
         state, reward, done, _ = env.step(action.item())
 
         episode_reward += reward
