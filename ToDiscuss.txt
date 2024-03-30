@@ -27,3 +27,5 @@ Whether they prioritize fuel conservation or landing accuracy.
 How their strategies differ based on the fuel constraint.
 Feel free to provide the maximum fuel capacity
 
+Report Writing: 
+can we reuse literature from proposal
