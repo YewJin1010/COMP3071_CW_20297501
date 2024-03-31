@@ -89,8 +89,16 @@ if env == 1:
     
 elif env == 2:
     env = "CartPole"
-    train_env = gym.make('CartPole-v0')
-    test_env = gym.make('CartPole-v0')
+    train_env = gym.make(
+        'CartPole-v0',
+        #render_mode="human"                  
+    )
+
+    test_env = gym.make(
+        'CartPole-v0',
+        #render_mode="human"
+    )
+
 else:
     print("Invalid input")
     exit()

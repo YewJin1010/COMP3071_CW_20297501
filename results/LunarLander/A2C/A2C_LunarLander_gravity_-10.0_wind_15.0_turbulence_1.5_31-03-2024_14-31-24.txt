@@ -1,0 +1,7 @@
+Environment: LunarLander
+Agent: A2C
+Parameters: gravity_-10.0_wind_15.0_turbulence_1.5
+Episodes: 1
+Train rewards: [-578.7280309899934]
+Test rewards: [-423.2731344858295]
+Reward threshold: None
