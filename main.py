@@ -83,9 +83,7 @@ if env == 1:
     SEED = 1234
     train_env.seed(SEED)
     test_env.seed(SEED+1)
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
-    
+
     
 elif env == 2:
     env = "CartPole"
