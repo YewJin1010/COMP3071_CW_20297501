@@ -205,9 +205,10 @@ def train_a2c_buffer(train_env, test_env):
     WARMUP_EPISODES = 100
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 25
-    REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
     LEARNING_RATE = 0.0001
+    REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
+    REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -229,8 +230,6 @@ def train_a2c_buffer(train_env, test_env):
 
     train_rewards = []
     test_rewards = []
-    consecutive_episodes = 0
-    REWARD_THRESHOLD_CARTPOLE = 195
 
     # Replay buffer warm-up phase
     for _ in range(WARMUP_EPISODES):
@@ -260,7 +259,7 @@ def train_a2c_buffer(train_env, test_env):
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
         if test_env.unwrapped.spec.id == 'CartPole-v0':
-            if mean_train_rewards >= REWARD_THRESHOLD_CARTPOLE:
+            if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
                 consecutive_episodes += 1
                 if consecutive_episodes >= 100:
                     print(f'Reached reward threshold in {episode} episodes for CartPole')
@@ -268,8 +267,9 @@ def train_a2c_buffer(train_env, test_env):
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
-            print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-            return train_rewards, test_rewards, None, episode
+            if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
+                print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
+                return train_rewards, test_rewards, None, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode

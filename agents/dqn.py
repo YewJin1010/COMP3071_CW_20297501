@@ -131,11 +131,14 @@ def evaluate(env, agent):
     return total_reward
     
 def train_dqn(train_env, test_env):
-    MAX_EPISODES = 2000
+    MAX_EPISODES = 2000 # Maximum number of episodes to run
     N_TRIALS = 25
-    REWARD_THRESHOLD = 200
     PRINT_EVERY = 10
     max_timesteps = 1000 # maximum number of timesteps per episode
+    consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
+    REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
+    REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
+
 
     # Initialize the agent based on the environment
     if train_env.unwrapped.spec.id == "LunarLander-v2":
@@ -150,9 +153,6 @@ def train_dqn(train_env, test_env):
     epsilon = 1.0  # initialize epsilon
     epsilon_decay = 0.99  # epsilon decay
     epsilon_min = 0.01  # minimum epsilon
-
-    consecutive_episodes = 0
-    REWARD_THRESHOLD_CARTPOLE = 195
     
     for episode in range(1, MAX_EPISODES + 1):
         state = train_env.reset()
@@ -177,7 +177,7 @@ def train_dqn(train_env, test_env):
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
         if test_env.unwrapped.spec.id == 'CartPole-v0':
-            if mean_train_rewards >= REWARD_THRESHOLD_CARTPOLE:
+            if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
                 consecutive_episodes += 1
                 if consecutive_episodes >= 100:
                     print(f'Reached reward threshold in {episode} episodes for CartPole')
@@ -185,9 +185,9 @@ def train_dqn(train_env, test_env):
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
-            print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-            return train_rewards, test_rewards, None, episode
+            if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
+                print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
+                return train_rewards, test_rewards, None, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
-

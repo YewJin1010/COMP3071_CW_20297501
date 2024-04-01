@@ -1,0 +1,7 @@
+Environment: CartPole
+Agent: DQN
+Parameters: 
+Episodes: 1
+Train rewards: [-246.03651252646125]
+Test rewards: [-130.67137685293778]
+Reward threshold: None

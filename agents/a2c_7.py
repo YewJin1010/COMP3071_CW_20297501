@@ -22,8 +22,10 @@ class ActorCritic(nn.Module):
 
     def forward(self, x):
         return self.actor(x), self.critic(x)
-class A2C:
+
+class A2C(nn.Module):  # Modified to inherit from nn.Module
     def __init__(self, input_size, hidden_size, output_size, lr_actor=0.001, lr_critic=0.001):
+        super(A2C, self).__init__()  # Call the parent class constructor
         self.actor_critic = ActorCritic(input_size, hidden_size, output_size)
         self.optimizer_actor = optim.Adam(self.actor_critic.actor.parameters(), lr=lr_actor)
         self.optimizer_critic = optim.Adam(self.actor_critic.critic.parameters(), lr=lr_critic)
@@ -36,105 +38,166 @@ class A2C:
         log_prob = dist.log_prob(action)
         return action.item(), log_prob
 
-    def update(self, states, actions, rewards, next_states, dones, gamma=0.99):
-        states_tensor = torch.tensor(states, dtype=torch.float32)
-        next_states_tensor = torch.tensor(next_states, dtype=torch.float32)
+    def update(self, env, optimizer, gamma=0.99):
+        self.train()
 
-        _, critic_values = self.actor_critic(states_tensor)
-        _, next_critic_values = self.actor_critic(next_states_tensor)
+        states = []
+        actions = []
+        log_prob_actions = []
+        values = []
+        rewards = []
+        done = False
+        episode_reward = 0
 
-        # Convert rewards and dones to tensors
-        rewards_tensor = torch.tensor(rewards, dtype=torch.float32)
-        dones_tensor = torch.tensor(dones, dtype=torch.float32)
+        state = env.reset()
 
-        td_targets = rewards_tensor + gamma * next_critic_values * (1 - dones_tensor)
-        advantages = td_targets - critic_values
+        while not done:
+            if isinstance(state, tuple):
+                state, _ = state
 
-        # Actor loss
-        log_probs = []
-        for action in actions:
-            _, log_prob = self.select_action(states[action])
-            log_probs.append(log_prob)
-        actor_loss = -torch.stack(log_probs).mean()
+            state = torch.FloatTensor(state).unsqueeze(0)
+            states.append(state)
+            action_pred, value_pred = self.actor_critic(state)
+            action_prob = nn.functional.softmax(action_pred, dim=-1)
+            dist = Categorical(action_prob)
 
-        # Critic loss
-        critic_loss = nn.MSELoss()(critic_values, td_targets.detach())
+            action = dist.sample()
+            log_prob_action = dist.log_prob(action)
 
-        # Update networks
-        self.optimizer_actor.zero_grad()
-        self.optimizer_critic.zero_grad()
-        actor_loss.backward()
-        critic_loss.backward()
-        self.optimizer_actor.step()
-        self.optimizer_critic.step()
+            state, reward, done, _ = env.step(action.item())
 
-        return actor_loss.item(), critic_loss.item()
+            actions.append(action)
+            log_prob_actions.append(log_prob_action)
+            values.append(value_pred)
+            rewards.append(reward)
+            episode_reward += reward
+
+        states = torch.cat(states)
+        actions = torch.cat(actions)
+        log_prob_actions = torch.cat(log_prob_actions)
+        values = torch.cat(values).squeeze(-1)
+
+        returns = calculate_returns(rewards, gamma)
+        advantages = calculate_advantages(returns, values)
+
+        policy_loss, value_loss = update_policy(self, states, actions, advantages, log_prob_actions, returns, values,
+                                                optimizer)
+
+        return policy_loss, value_loss, episode_reward
+
+    def evaluate(self, env):
+        self.eval()
+
+        done = False
+        episode_reward = 0
+
+        state = env.reset()
+
+        while not done:
+
+            if isinstance(state, tuple):
+                state, _ = state
+            state = torch.FloatTensor(state).unsqueeze(0)
+
+            with torch.no_grad():
+
+                action_pred, _ = self.actor_critic(state)
+
+                action_prob = nn.functional.softmax(action_pred, dim=-1)
+
+            action = torch.argmax(action_prob, dim=-1)
+
+            state, reward, done, _ = env.step(action.item())
+
+            episode_reward += reward
+
+        return episode_reward
+
+def calculate_returns(rewards, gamma):
+    returns = []
+    R = 0
+    for r in reversed(rewards):
+        R = r + R * gamma
+        returns.insert(0, R)
+    returns = torch.tensor(returns, dtype=torch.float32)
+    returns = (returns - returns.mean()) / returns.std()
+    return returns
+
+def calculate_advantages(returns, values):
+    advantages = returns - values
+    advantages = (advantages - advantages.mean()) / advantages.std()
+    return advantages
+
+def update_policy(policy, states, actions, advantages, log_prob_actions, returns, values, optimizer):
+    advantages = advantages.detach()
+    returns = returns.detach()
+
+    action_pred, value_pred = policy.actor_critic(states)
+    value_pred = value_pred.squeeze(-1)
+    action_prob = nn.functional.softmax(action_pred, dim=-1)
+    dist = Categorical(action_prob)
+
+    new_log_prob_actions = dist.log_prob(actions)
+
+    policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions)
+    clipped_policy_ratio = torch.clamp(policy_ratio, min=1.0 - 0.2, max=1.0 + 0.2)
+
+    policy_loss_1 = policy_ratio * advantages
+    policy_loss_2 = clipped_policy_ratio * advantages
+    policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
+
+    value_pred_expanded = value_pred.expand_as(returns)
+    value_loss = nn.functional.smooth_l1_loss(returns, value_pred_expanded).mean()
+
+    loss = policy_loss + value_loss
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    return policy_loss.item(), value_loss.item()
 
 def train_a2c(train_env, test_env):
-    input_size = train_env.observation_space.shape[0]
-    hidden_size = 128
-    output_size = train_env.action_space.n
-    a2c_agent = A2C(input_size, hidden_size, output_size)
-
-    max_episodes = 2000
-    max_steps = 1000
-    gamma = 0.99
+    MAX_EPISODES = 2000
+    DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
-    REWARD_THRESHOLD = 195  # Same as the CartPole environment
+    PRINT_EVERY = 10
+    LEARNING_RATE = 0.001
+
+    INPUT_DIM = train_env.observation_space.shape[0]
+    HIDDEN_DIM = 128
+    OUTPUT_DIM = train_env.action_space.n
+
+    actor = ActorCritic(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
+    policy = A2C(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
+    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 
     train_rewards = []
     test_rewards = []
 
-    for episode in range(max_episodes):
-        state = train_env.reset()
-        states, actions, rewards, next_states, dones = [], [], [], [], []
-        total_reward = 0
+    consecutive_episodes = 0
+    REWARD_THRESHOLD_CARTPOLE = 195
 
-        for step in range(max_steps):
-            action, log_prob = a2c_agent.select_action(state)
-            next_state, reward, done, _ = train_env.step(action)
+    for episode in range(1, MAX_EPISODES + 1):
+        policy_loss, value_loss, train_reward = policy.update(train_env, optimizer, DISCOUNT_FACTOR)
+        test_reward = policy.evaluate(test_env)
+        train_rewards.append(train_reward)
+        test_rewards.append(test_reward)
 
-            states.append(state)
-            actions.append(action)
-            rewards.append(reward)
-            next_states.append(next_state)
-            dones.append(done)
+        mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
+        mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
 
-            state = next_state
-            total_reward += reward
+        if episode % PRINT_EVERY == 0:
+            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
-            if done:
-                break
-
-        actor_loss, critic_loss = a2c_agent.update(states, actions, rewards, next_states, dones, gamma)
-
-        train_rewards.append(total_reward)
+        if test_env.unwrapped.spec.id == 'CartPole-v0':
+            if mean_train_rewards >= REWARD_THRESHOLD_CARTPOLE:
+                consecutive_episodes += 1
+                if consecutive_episodes >= 100:
+                    print(f'Reached reward threshold in {episode} episodes')
 
 
-        if episode % N_TRIALS == 0:
-            avg_train_reward = sum(train_rewards[-N_TRIALS:]) / N_TRIALS
-            print(f"Average training reward over last {N_TRIALS} episodes: {avg_train_reward}")
+train_env = gym.make('CartPole-v0')
+test_env = gym.make('CartPole-v0')
 
-            if avg_train_reward >= REWARD_THRESHOLD:
-                print(f"Lunar Lander environment solved in {episode} episodes.")
-                break
-
-        if episode % 10 == 0:
-            test_reward = 0
-            state = test_env.reset()
-            for _ in range(max_steps):
-                action, _ = a2c_agent.select_action(state)
-                state, reward, done, _ = test_env.step(action)
-                test_reward += reward
-                if done:
-                    break
-
-            test_rewards.append(test_reward)
-            print(f"Episode: {episode}, Test reward: {test_reward}, Actor loss: {actor_loss}, Critic loss: {critic_loss}")
-
-    return train_rewards, test_rewards
-
-train_env = gym.make("LunarLander-v2")
-test_env = gym.make("LunarLander-v2")
-
-train_rewards, test_rewards = train_a2c(train_env, test_env)
+train_a2c(train_env, test_env)

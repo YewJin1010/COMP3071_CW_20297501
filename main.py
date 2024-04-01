@@ -49,16 +49,17 @@ print("2. CartPole")
 
 env = int(input("Enter the number of the environment: "))
 if env == 1: 
+    
     """
-    gravity = float(input("Enter the gravity value (-10 to 1): "))
+    gravity = float(input("Enter the gravity value (-10 to -1): "))
     wind_power = float(input("Enter the wind power value (0 to 20): "))
     turbulence_power = float(input("Enter the turbulence power value (0 to 2): "))
-    """
-
+  
+    
     gravity = -10.0
     wind_power = 15.0
     turbulence_power = 1.5
-
+    
     env = "LunarLander"
     train_env = gym.make(
         "LunarLander-v2",
@@ -79,12 +80,29 @@ if env == 1:
         turbulence_power=turbulence_power,
         #render_mode="human",
     )
+    """
+
+    train_env = gym.make(
+        "LunarLander-v2",
+      
+    )
+
+    test_env = gym.make(
+        "LunarLander-v2",
     
+    )
+
+    gravity = -10.0
+    wind_power = 15.0
+    turbulence_power = 1.5
+
     SEED = 1234
+
     train_env.seed(SEED)
     test_env.seed(SEED+1)
-
-    
+    np.random.seed(SEED)
+    torch.manual_seed(SEED)
+        
 elif env == 2:
     env = "CartPole"
     train_env = gym.make(

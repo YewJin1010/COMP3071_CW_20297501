@@ -8,10 +8,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 
-MAX_EPISODE_DURATION = 300 
-
+# Multi-Layer Perceptron (MLP) network
 class MLP(nn.Module):
+
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+        """
+        :param input_dim: int: Dimension of the input
+        :param hidden_dim: int: Dimension of the hidden layer
+        :param output_dim: int: Dimension of the output
+        :param dropout: float: Dropout rate
+        """ 
         super().__init__()
         
         self.net = nn.Sequential(
@@ -23,30 +29,39 @@ class MLP(nn.Module):
             nn.PReLU(),
             nn.Linear(hidden_dim, output_dim)
         )
-        
+    
+    # Forward pass through the network
     def forward(self, x):
         x = self.net(x)
         return x
-    
+
+# Actor-Critic network
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
+        """
+        :param actor: nn.Module: Actor network
+        :param critic: nn.Module: Critic network
+        """ 
         super().__init__()
         
+        # Actor and Critic networks
         self.actor = actor
         self.critic = critic
         
     def forward(self, state):
-        
+        # Forward pass through the actor and critic networks
         action_pred = self.actor(state)
         value_pred = self.critic(state)
         
         return action_pred, value_pred
 
+# Initialize the weights of the network
 def init_weights(m):
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
+# Train the agent using Proximal Policy Optimization (PPO)
 def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         
     policy.train()
@@ -179,32 +194,37 @@ def evaluate(env, policy):
     return episode_reward
 
 def train_ppo(train_env, test_env):
-    MAX_EPISODES = 2000
-    DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 25
-    REWARD_THRESHOLD = 200
-    PRINT_EVERY = 10
-    PPO_STEPS = 5
-    PPO_CLIP = 0.2
-    LEARNING_RATE = 0.0005
+    MAX_EPISODES = 2000 # Maximum number of episodes to run
+    DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
+    N_TRIALS = 25 # Number of trials to average rewards over
+    PRINT_EVERY = 10 # How often to print the progress
+    PPO_STEPS = 5 # Number of steps to optimize the policy
+    PPO_CLIP = 0.2 # Clipping parameter for the policy loss
+    LEARNING_RATE = 0.0005 # Learning rate for the optimizer
+    MAX_EPISODE_DURATION = 300  # Maximum duration of an episode in the environment
+    consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
+    REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
+    REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
+    # Initialize the environment
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
     OUTPUT_DIM = train_env.action_space.n
 
+    # Initialize the agent
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
 
     policy = ActorCritic(actor, critic)
     policy.apply(init_weights)
 
+    # Initialize the optimizer
     optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
 
     train_rewards = []
     test_rewards = []
-    consecutive_episodes = 0
-    REWARD_THRESHOLD_CARTPOLE = 195
 
+    # Train the agent
     for episode in range(1, MAX_EPISODES+1):
         
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
@@ -221,7 +241,7 @@ def train_ppo(train_env, test_env):
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
         if test_env.unwrapped.spec.id == 'CartPole-v0':
-            if mean_train_rewards >= REWARD_THRESHOLD_CARTPOLE:
+            if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
                 consecutive_episodes += 1
                 if consecutive_episodes >= 100:
                     print(f'Reached reward threshold in {episode} episodes for CartPole')
@@ -229,8 +249,9 @@ def train_ppo(train_env, test_env):
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
-            print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-            return train_rewards, test_rewards, None, episode
+            if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
+                print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
+                return train_rewards, test_rewards, None, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode

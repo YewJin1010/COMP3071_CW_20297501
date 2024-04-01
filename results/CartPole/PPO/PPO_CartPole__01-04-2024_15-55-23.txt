@@ -1,0 +1,7 @@
+Environment: CartPole
+Agent: PPO
+Parameters: 
+Episodes: 1
+Train rewards: [-404.1366984148105]
+Test rewards: [-531.2247177221354]
+Reward threshold: None
