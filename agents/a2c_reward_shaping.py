@@ -43,6 +43,53 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
+def custom_reward_function(state):
+    """
+    # Reward based on the position of the lander
+    # Extract relevant state variables
+    pos_x, pos_y, *_ = state
+    
+    # Define the coordinates of the landing pad and the acceptable range around it
+    landing_pad_x_range = [-0.1, 0.1]  # Adjust the range as needed
+    landing_pad_y_range = [0.4, 0.6]   # Adjust the range as needed
+    
+    # Check if the Lunar Lander's position is within the landing pad range
+    if pos_x >= landing_pad_x_range[0] and pos_x <= landing_pad_x_range[1] and \
+       pos_y >= landing_pad_y_range[0] and pos_y <= landing_pad_y_range[1]:
+        # Reward for landing on the landing pad
+        reward = 100  # Adjust the reward as needed
+    else:
+        # Penalty for not landing on the landing pad
+        reward = -1  # Adjust the penalty as needed
+        
+    return reward
+    """
+
+      # Reward based on position, velocity, and angle
+    pos_x, pos_y, vx, vy, angle, ang_vel = state[:6]
+    landing_pad_x_range = [-0.1, 0.1]
+    landing_pad_y_range = [0.4, 0.6]
+    landing_reward = 100
+    penalty_factor = -1
+
+    # Reward for landing on the platform
+    if landing_pad_x_range[0] <= pos_x <= landing_pad_x_range[1] and \
+        landing_pad_y_range[0] <= pos_y <= landing_pad_y_range[1]:
+        reward = landing_reward
+    else:
+        # Penalty for missing the platform
+        reward = penalty_factor * abs(pos_x - landing_pad_x_range[0])
+
+    # Penalty for high velocity
+    velocity_penalty = penalty_factor * (vx**2 + vy**2) ** 0.5
+    reward += velocity_penalty
+
+    # Penalty for tilting
+    angle_penalty = penalty_factor * abs(angle)
+    reward += angle_penalty
+
+    return reward
+
 def train(env, policy, optimizer, discount_factor, learning_rate):
     policy.train()
         
@@ -82,9 +129,10 @@ def train(env, policy, optimizer, discount_factor, learning_rate):
         actions.append(action)
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
-        rewards.append(reward)
-        
-        episode_reward += reward
+        #rewards.append(reward)
+        custom_reward = custom_reward_function(state)
+        rewards.append(custom_reward)
+        episode_reward += custom_reward
     
     states = torch.cat(states)
     actions = torch.cat(actions)    
@@ -223,3 +271,9 @@ def train_a2c(train_env, test_env):
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
+
+
+train_env = gym.make("LunarLander-v2")
+test_env = gym.make("LunarLander-v2")
+
+train_a2c(train_env, test_env)
