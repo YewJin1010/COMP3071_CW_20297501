@@ -32,10 +32,8 @@ class ActorCritic(nn.Module):
         self.critic = critic
         
     def forward(self, state):
-        
         action_pred = self.actor(state)
         value_pred = self.critic(state)
-        
         return action_pred, value_pred
 
 def init_weights(m):
@@ -43,9 +41,13 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor, learning_rate):
+def train(env, policy, optimizer, discount_factor, learning_rate, l2_lambda):
     policy.train()
-        
+    
+    # Initialize state means and stds (for online calculation)
+    state_means = np.zeros(env.observation_space.shape[0])  # Adjust shape if needed
+    state_stds = np.ones(env.observation_space.shape[0])  # Avoid zero division initially
+
     states = [] 
     actions = []
     log_prob_actions = []
@@ -57,13 +59,15 @@ def train(env, policy, optimizer, discount_factor, learning_rate):
     state = env.reset()
 
     while not done:
-
         if isinstance(state, tuple):
             state, _ = state
 
-        state = torch.FloatTensor(state)
-        states.append(state)
-        
+        state_means = (1 - learning_rate) * state_means + learning_rate * state  # Learning rate of LEARNING_RATE
+        state_stds = (1 - learning_rate) * state_stds + learning_rate * (state - state_means) ** 2
+
+        state = torch.FloatTensor((state - state_means) / state_stds).unsqueeze(0)
+
+        states.append(state)        
         action_pred, value_pred = policy(state)
         action_prob = F.softmax(action_pred, dim=-1)
         dist = distributions.Categorical(action_prob)
@@ -79,16 +83,16 @@ def train(env, policy, optimizer, discount_factor, learning_rate):
         
         episode_reward += reward
     
-    states = torch.stack(states)
-    actions = torch.stack(actions)    
-    log_prob_actions = torch.stack(log_prob_actions)
-    values = torch.stack(values).squeeze(-1)
+    states = torch.cat(states)
+    actions = torch.cat(actions)    
+    log_prob_actions = torch.cat(log_prob_actions)
+    values = torch.cat(values).squeeze(-1)
 
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
 
     # Compute policy and value losses using a clipped surrogate objective
-    policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer)
+    policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, l2_lambda)
 
     return policy_loss, value_loss, episode_reward
 
@@ -98,20 +102,21 @@ def calculate_returns(rewards, discount_factor, normalize=True):
     for r in reversed(rewards):
         R = r + R * discount_factor
         returns.insert(0, R)
-    returns = torch.tensor(returns, dtype=torch.float32)
+    returns = torch.tensor(returns)
     if normalize:
         returns = (returns - returns.mean()) / returns.std()
     return returns
 
 def calculate_advantages(returns, values, normalize=True):
     # Calculate advantage using normalized returns
+    if normalize:
+        returns = (returns - returns.mean()) / returns.std()
     advantages = returns - values
     if normalize:
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer):
-    
+def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, l2_lambda):
     total_policy_loss = 0 
     total_value_loss = 0
 
@@ -126,10 +131,15 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
     policy_loss = -(advantages * (new_log_prob_actions - log_prob_actions.detach())).mean()
     value_loss = F.smooth_l1_loss(returns, value_pred.squeeze(-1)).mean()
 
+    # L2 Regularization
+    l2_reg = 0
+    for param in policy.parameters():
+        l2_reg += torch.norm(param)
+
+    loss = policy_loss + l2_lambda * l2_reg
+    
     optimizer.zero_grad()
-
-    (policy_loss + value_loss).backward()
-
+    loss.backward()
     optimizer.step()
 
     total_policy_loss += policy_loss.item()
@@ -138,7 +148,6 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
     return total_policy_loss, total_value_loss
 
 def evaluate(env, policy):
-    
     policy.eval()
     done = False
     episode_reward = 0
@@ -146,15 +155,12 @@ def evaluate(env, policy):
     state = env.reset()
 
     while not done:
-
         if isinstance(state, tuple):
             state, _ = state
-        state = torch.FloatTensor(state)
+        state = torch.FloatTensor(state).unsqueeze(0)
 
         with torch.no_grad():
-        
             action_pred, _ = policy(state)
-
             action_prob = F.softmax(action_pred, dim=-1)
                 
         action = torch.argmax(action_prob, dim=-1)
@@ -169,10 +175,9 @@ def train_a2c(train_env, test_env):
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 25
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.001
-    consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
-    REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
-    REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
+    LEARNING_RATE = 0.003
+    REWARD_THRESHOLD_CARTPOLE = 195
+    REWARD_THRESHOLD_LUNAR_LANDER = 200
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -188,9 +193,10 @@ def train_a2c(train_env, test_env):
 
     train_rewards = []
     test_rewards = []
+    consecutive_episodes = 0
 
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, LEARNING_RATE)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, LEARNING_RATE, l2_lambda=0.001)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
@@ -217,7 +223,9 @@ def train_a2c(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
+"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
 train_rewards, test_rewards, _, _ = train_a2c(train_env, test_env)
+"""
