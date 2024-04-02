@@ -46,10 +46,6 @@ def init_weights(m):
 def train(env, policy, optimizer, discount_factor, learning_rate):
     policy.train()
         
-    # Initialize state means and stds (for online calculation)
-    state_means = np.zeros(env.observation_space.shape[0])  # Adjust shape if needed
-    state_stds = np.ones(env.observation_space.shape[0])  # Avoid zero division initially
-
     states = [] 
     actions = []
     log_prob_actions = []
@@ -65,12 +61,9 @@ def train(env, policy, optimizer, discount_factor, learning_rate):
         if isinstance(state, tuple):
             state, _ = state
 
-        state_means = (1 - learning_rate) * state_means + learning_rate * state  # Learning rate of LEARNING_RATE
-        state_stds = (1 - learning_rate) * state_stds + learning_rate * (state - state_means) ** 2
-
-        state = torch.FloatTensor((state - state_means) / state_stds).unsqueeze(0)
-
-        states.append(state)        
+        state = torch.FloatTensor(state)
+        states.append(state)
+        
         action_pred, value_pred = policy(state)
         action_prob = F.softmax(action_pred, dim=-1)
         dist = distributions.Categorical(action_prob)
@@ -86,10 +79,10 @@ def train(env, policy, optimizer, discount_factor, learning_rate):
         
         episode_reward += reward
     
-    states = torch.cat(states)
-    actions = torch.cat(actions)    
-    log_prob_actions = torch.cat(log_prob_actions)
-    values = torch.cat(values).squeeze(-1)
+    states = torch.stack(states)
+    actions = torch.stack(actions)    
+    log_prob_actions = torch.stack(log_prob_actions)
+    values = torch.stack(values).squeeze(-1)
 
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
@@ -100,24 +93,22 @@ def train(env, policy, optimizer, discount_factor, learning_rate):
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):
-  returns = []
-  R = 0
-  for r in reversed(rewards):
-      R = r + R * discount_factor
-      returns.insert(0, R)
-  returns = torch.tensor(returns)
-  if normalize:
-      returns = (returns - returns.mean()) / returns.std()
-  return returns
+    returns = []
+    R = 0
+    for r in reversed(rewards):
+        R = r + R * discount_factor
+        returns.insert(0, R)
+    returns = torch.tensor(returns, dtype=torch.float32)
+    if normalize:
+        returns = (returns - returns.mean()) / returns.std()
+    return returns
 
 def calculate_advantages(returns, values, normalize=True):
-  # Calculate advantage using normalized returns
-  if normalize:
-    returns = (returns - returns.mean()) / returns.std()
-  advantages = returns - values
-  if normalize:
-    advantages = (advantages - advantages.mean()) / advantages.std()
-  return advantages
+    # Calculate advantage using normalized returns
+    advantages = returns - values
+    if normalize:
+        advantages = (advantages - advantages.mean()) / advantages.std()
+    return advantages
 
 def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer):
     
@@ -137,8 +128,7 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
 
     optimizer.zero_grad()
 
-    policy_loss.backward()
-    value_loss.backward()
+    (policy_loss + value_loss).backward()
 
     optimizer.step()
 
@@ -159,7 +149,7 @@ def evaluate(env, policy):
 
         if isinstance(state, tuple):
             state, _ = state
-        state = torch.FloatTensor(state).unsqueeze(0)
+        state = torch.FloatTensor(state)
 
         with torch.no_grad():
         
