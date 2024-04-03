@@ -10,7 +10,7 @@ import csv
 
 # Import agents
 from agents.ppo import train_ppo
-from agents.a2c_2 import train_a2c
+from agents.a2c import train_a2c
 from agents.dqn import train_dqn
 from agents.a2c_ppo import train_a2c_ppo
 from agents.a2c_buffer import train_a2c_buffer

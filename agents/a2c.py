@@ -219,7 +219,7 @@ def train_a2c(train_env, test_env):
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, None, episode
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode

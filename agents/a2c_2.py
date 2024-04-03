@@ -172,10 +172,11 @@ def evaluate(env, policy):
 
 def train_a2c(train_env, test_env):
     MAX_EPISODES = 2000
-    DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 25
+    DISCOUNT_FACTOR = 0.85
+    N_TRIALS = 100
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.003
+    LEARNING_RATE = 0.0001
+    L2_LAMBDA = 0.1
     REWARD_THRESHOLD_CARTPOLE = 195
     REWARD_THRESHOLD_LUNAR_LANDER = 200
 
@@ -196,7 +197,7 @@ def train_a2c(train_env, test_env):
     consecutive_episodes = 0
 
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, LEARNING_RATE, l2_lambda=0.001)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, LEARNING_RATE, L2_LAMBDA)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
