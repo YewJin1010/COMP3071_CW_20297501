@@ -11,20 +11,30 @@ BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
-LEARNING_RATE = 0.001  # learning rate
+LEARNING_RATE = 0.001 #0.0005  # learning rate
 UPDATE_EVERY = 4  # how often to update the network
 
 class QNetwork(nn.Module):
-    def __init__(self, state_size, action_size, seed, fc1_unit=64, fc2_unit=64):
-        super(QNetwork, self).__init__() 
+    def __init__(self, state_size, action_size, seed):
+        """Initialize parameters and build model.
+        Params
+        ======
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
+            seed (int): Random seed
+        """
+        super(QNetwork, self).__init__()
         self.seed = T.manual_seed(seed)
-        self.fc1 = nn.Linear(state_size, fc1_unit)
-        self.fc2 = nn.Linear(fc1_unit, fc2_unit)
-        self.fc3 = nn.Linear(fc2_unit, action_size)
-
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
+        self.fc1 = nn.Linear(state_size, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, action_size)
+        
+    def forward(self, state):
+        """Build a network that maps state -> action values."""
+        x = self.fc1(state)
+        x = F.relu(x)
+        x = self.fc2(x)
+        x = F.relu(x)
         return self.fc3(x)
 
 class ReplayBuffer:
@@ -54,7 +64,7 @@ class ReplayBuffer:
         return len(self.memory)
 
 class Agent:
-    def __init__(self, state_size, action_size, seed):
+    def __init__(self, state_size, action_size, seed, l2_reg=0.0):  # Add l2_reg parameter
         random.seed(seed)
         self.state_size = state_size
         self.action_size = action_size
@@ -62,7 +72,9 @@ class Agent:
         # Q-Network
         self.qnetwork_local = QNetwork(state_size, action_size, seed)
         self.qnetwork_target = QNetwork(state_size, action_size, seed)
-        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), learning_rate=LEARNING_RATE)
+        
+        # Add L2 regularization to the optimizer
+        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LEARNING_RATE, weight_decay=l2_reg)
 
         # Replay memory
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
@@ -150,7 +162,7 @@ def train_dqn(train_env, test_env):
     train_rewards = []  # list containing rewards from each episode
     test_rewards = []  # list containing rewards from each test episode
     epsilon = 1.0  # initialize epsilon
-    epsilon_decay = 0.99  # epsilon decay
+    epsilon_decay = 0.995  # epsilon decay
     epsilon_min = 0.01  # minimum epsilon
     
     for episode in range(1, MAX_EPISODES + 1):
