@@ -11,7 +11,7 @@ BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
 GAMMA = 0.99  # discount factor
 TAU = 1e-3  # for soft update of target parameters
-LR = 0.0005  # learning rate
+LEARNING_RATE = 0.001  # learning rate
 UPDATE_EVERY = 4  # how often to update the network
 
 class QNetwork(nn.Module):
@@ -62,7 +62,7 @@ class Agent:
         # Q-Network
         self.qnetwork_local = QNetwork(state_size, action_size, seed)
         self.qnetwork_target = QNetwork(state_size, action_size, seed)
-        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
+        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), learning_rate=LEARNING_RATE)
 
         # Replay memory
         self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
@@ -132,13 +132,12 @@ def evaluate(env, agent):
     
 def train_dqn(train_env, test_env):
     MAX_EPISODES = 2000 # Maximum number of episodes to run
-    N_TRIALS = 25
+    N_TRIALS = 100
     PRINT_EVERY = 10
     max_timesteps = 1000 # maximum number of timesteps per episode
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
-
 
     # Initialize the agent based on the environment
     if train_env.unwrapped.spec.id == "LunarLander-v2":
@@ -187,7 +186,7 @@ def train_dqn(train_env, test_env):
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, None, episode
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode

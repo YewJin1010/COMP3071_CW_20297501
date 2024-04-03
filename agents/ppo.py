@@ -107,7 +107,14 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     advantages = calculate_advantages(returns, values)
 
     policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip)
-
+    
+    # L2 Regularization
+    l2_reg = 0.0
+    l2_lambda = 0.1
+    for param in policy.parameters():
+        l2_reg += torch.norm(param)
+    policy_loss += l2_lambda * l2_reg
+    
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize = True):
@@ -196,12 +203,11 @@ def evaluate(env, policy):
 def train_ppo(train_env, test_env):
     MAX_EPISODES = 2000 # Maximum number of episodes to run
     DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
-    N_TRIALS = 25 # Number of trials to average rewards over
+    N_TRIALS = 100 # Number of trials to average rewards over
     PRINT_EVERY = 10 # How often to print the progress
     PPO_STEPS = 5 # Number of steps to optimize the policy
     PPO_CLIP = 0.2 # Clipping parameter for the policy loss
-    LEARNING_RATE = 0.0005 # Learning rate for the optimizer
-    MAX_EPISODE_DURATION = 300  # Maximum duration of an episode in the environment
+    LEARNING_RATE = 0.001 # Learning rate for the optimizer
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -251,7 +257,7 @@ def train_ppo(train_env, test_env):
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, None, episode
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode

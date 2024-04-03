@@ -56,8 +56,8 @@ if env == 1:
    """
     
     gravity = -10
-    wind_power = 0
-    turbulence_power = 0
+    wind_power = 15
+    turbulence_power = 1.5
     
     env = "LunarLander"
     train_env = gym.make(
