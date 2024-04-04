@@ -93,7 +93,7 @@ def train(env, policy, optimizer, discount_factor, learning_rate):
 
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
-
+    
     # Compute policy and value losses using a clipped surrogate objective
     policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer)
 
@@ -133,7 +133,6 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
     value_loss = F.smooth_l1_loss(returns, value_pred.squeeze(-1)).mean()
 
     optimizer.zero_grad()
-
     policy_loss.backward()
     value_loss.backward()
 
@@ -223,10 +222,3 @@ def train_a2c(train_env, test_env):
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
-
-"""
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
-train_rewards, test_rewards, _, _ = train_a2c(train_env, test_env)
-"""

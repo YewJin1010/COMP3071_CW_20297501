@@ -87,13 +87,6 @@ def train(env, policy, optimizer, discount_factor):
     
     policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
 
-    # L2 Regularization
-    l2_reg = 0.0
-    l2_lambda = 0.1
-    for param in policy.parameters():
-        l2_reg += torch.norm(param)
-    policy_loss += l2_lambda * l2_reg
-
     return policy_loss, value_loss, episode_reward
 def calculate_returns(rewards, discount_factor, normalize = True):
     
@@ -216,3 +209,10 @@ def train_a2c_2(train_env, test_env):
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
+
+"""
+train_env = gym.make('LunarLander-v2')
+test_env = gym.make('LunarLander-v2')
+
+train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
+"""

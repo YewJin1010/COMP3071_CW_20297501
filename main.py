@@ -10,7 +10,7 @@ import csv
 
 # Import agents
 from agents.ppo import train_ppo
-from agents.a2c import train_a2c
+from agents.a2c_3 import train_a2c
 from agents.dqn import train_dqn
 from agents.a2c_ppo import train_a2c_ppo
 from agents.a2c_buffer import train_a2c_buffer
@@ -102,8 +102,8 @@ else:
     exit()
 
 print("Select agent to train: ")
-print("1. PPO")
-print("2. A2C")
+print("1. A2C")
+print("2. PPO")
 print("3. DQN")
 print("4. A2CPPO") 
 print("5. A2CBuffer")
@@ -111,11 +111,11 @@ print("6. All")
 
 agent = int(input("Enter the number of the agent: "))
 if agent == 1:
-    agent = "PPO"
-    train_rewards, test_rewards, reward_threshold, episode = train_ppo(train_env, test_env)
-elif agent == 2:
     agent = "A2C"
     train_rewards, test_rewards, reward_threshold, episode = train_a2c(train_env, test_env)
+elif agent == 2:
+    agent = "PPO"
+    train_rewards, test_rewards, reward_threshold, episode = train_ppo(train_env, test_env)
 elif agent == 3:
     agent = "DQN"
     train_rewards, test_rewards, reward_threshold, episode = train_dqn(train_env, test_env)
@@ -130,14 +130,13 @@ elif agent == 6:
     now = datetime.datetime.now()
     now = now.strftime("%d-%m-%Y_%H-%M-%S")
     for a in agent:
-        
-        if a == "PPO":
-            train_rewards, test_rewards, reward_threshold, episode = train_ppo(train_env, test_env)
+        if a == "A2C":
+            train_rewards, test_rewards, reward_threshold, episode = train_a2c(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_threshold, env, a, now)
             write_results(episode, train_rewards, test_rewards, reward_threshold, env, a, now)
 
-        elif a == "A2C":
-            train_rewards, test_rewards, reward_threshold, episode = train_a2c(train_env, test_env)
+        elif a == "PPO":
+            train_rewards, test_rewards, reward_threshold, episode = train_ppo(train_env, test_env)
             plot_results(train_rewards, test_rewards, reward_threshold, env, a, now)
             write_results(episode, train_rewards, test_rewards, reward_threshold, env, a, now)
 
