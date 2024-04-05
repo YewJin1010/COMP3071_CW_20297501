@@ -1,107 +1,43 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-
 import random
 import numpy as np
-import gym
-import gym.spaces as sp
-from tqdm import trange
-from time import sleep
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 from collections import namedtuple, deque
-import matplotlib.pyplot as plt
+import gym
 
+# Hyperparameters (may need to be tuned for optimal performance)
+BUFFER_SIZE = int(1e5)  # Replay buffer size
+BATCH_SIZE = 64         # Minibatch size
+GAMMA = 0.99            # Discount factor
+TAU = 1e-3              # Target network update factor
+LEARNING_RATE = 0.001    # Learning rate
+UPDATE_EVERY = 4        # Update target network every UPDATE_EVERY steps
+EPSILON_DECAY = 0.999    # Epsilon decay rate for epsilon-greedy exploration
+EPSILON_MIN = 0.01       # Minimum epsilon value
 
-class QNet(nn.Module):
-    # Policy Network
-    def __init__(self, n_states, n_actions, n_hidden=64):
-        super(QNet, self).__init__()
+class QNetwork(nn.Module):
+    def __init__(self, state_size, action_size, seed):
+        super(QNetwork, self).__init__()
+        self.seed = torch.manual_seed(seed)
+        self.fc1 = nn.Linear(state_size, 64)
+        self.fc2 = nn.Linear(64, 64)
+        self.fc3 = nn.Linear(64, action_size)
 
-        self.fc = nn.Sequential(
-            nn.Linear(n_states, n_hidden),
-            nn.ReLU(),
-            nn.Linear(n_hidden, n_hidden),
-            nn.ReLU(),
-            nn.Linear(n_hidden, n_actions)
-            )
+    def forward(self, state):
+        x = F.relu(self.fc1(state))
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)
 
-    def forward(self, x):
-        return self.fc(x)
-    
-class DQN():
-    def __init__(self, n_states, n_actions, batch_size=64, lr=1e-4, gamma=0.99, mem_size=int(1e5), learn_step=5, tau=1e-3):
-        self.n_states = n_states
-        self.n_actions = n_actions
+class ReplayBuffer(object):
+    def __init__(self, action_size, buffer_size, batch_size, seed):
+        self.action_size = action_size
+        self.buffer_size = buffer_size
+        self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
-        self.gamma = gamma
-        self.learn_step = learn_step
-        self.tau = tau
-
-        # model
-        self.net_eval = QNet(n_states, n_actions)
-        self.net_target = QNet(n_states, n_actions)
-        self.optimizer = optim.Adam(self.net_eval.parameters(), lr=lr)
-        self.criterion = nn.MSELoss()
-
-        # memory
-        self.memory = ReplayBuffer(n_actions, mem_size, batch_size)
-        self.counter = 0    # update cycle counter
-
-    def getAction(self, state, epsilon):
-        state = torch.from_numpy(state).float().unsqueeze(0)
-
-        self.net_eval.eval()
-        with torch.no_grad():
-            action_values = self.net_eval(state)
-        self.net_eval.train()
-
-        # epsilon-greedy
-        if random.random() < epsilon:
-            action = random.choice(np.arange(self.n_actions))
-        else:
-            action = np.argmax(action_values.cpu().data.numpy())
-
-        return action
-
-    def save2memory(self, state, action, reward, next_state, done):
-        self.memory.add(state, action, reward, next_state, done)
-
-        self.counter += 1
-        if self.counter % self.learn_step == 0:
-            if len(self.memory) >= self.batch_size:
-                experiences = self.memory.sample()
-                self.learn(experiences)
-
-    def learn(self, experiences):
-        states, actions, rewards, next_states, dones = experiences
-
-        q_target = self.net_target(next_states).detach().max(axis=1)[0].unsqueeze(1)
-        y_j = rewards + self.gamma * q_target * (1 - dones)          # target, if terminal then y_j = rewards
-        q_eval = self.net_eval(states).gather(1, actions)
-
-        # loss backprop
-        loss = self.criterion(q_eval, y_j)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        # soft update target network
-        self.softUpdate()
-
-    def softUpdate(self):
-        for eval_param, target_param in zip(self.net_eval.parameters(), self.net_target.parameters()):
-            target_param.data.copy_(self.tau*eval_param.data + (1.0-self.tau)*target_param.data)
-
-
-class ReplayBuffer():
-    def __init__(self, n_actions, memory_size, batch_size):
-        self.n_actions = n_actions
-        self.batch_size = batch_size
-        self.memory = deque(maxlen = memory_size)
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
-
-    def __len__(self):
-        return len(self.memory)
+        self.seed = random.seed(seed)
 
     def add(self, state, action, reward, next_state, done):
         e = self.experience(state, action, reward, next_state, done)
@@ -110,101 +46,160 @@ class ReplayBuffer():
     def sample(self):
         experiences = random.sample(self.memory, k=self.batch_size)
 
-        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float()
-        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long()
-        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float()
-        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float()
-        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None]).astype(np.uint8)).float()
+        states = torch.from_numpy(np.vstack([e.state for e in experiences if e is not None])).float().to()
+        actions = torch.from_numpy(np.vstack([e.action for e in experiences if e is not None])).long().to()
+        rewards = torch.from_numpy(np.vstack([e.reward for e in experiences if e is not None])).float().to()
+        next_states = torch.from_numpy(np.vstack([e.next_state for e in experiences if e is not None])).float().to()
+        dones = torch.from_numpy(np.vstack([e.done for e in experiences if e is not None])).float().to()
 
         return (states, actions, rewards, next_states, dones)
 
+    def __len__(self):
+        return len(self.memory)
 
-def train(env, agent, n_episodes=2000, max_steps=1000, eps_start=1.0, eps_end=0.1, eps_decay=0.995, target=200, chkpt=False):
-    score_hist = []
-    epsilon = eps_start
+class Agent(object):
+    def __init__(self, state_size, action_size, seed):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.seed = random.seed(seed)
 
-    bar_format = '{l_bar}{bar:10}| {n:4}/{total_fmt} [{elapsed:>7}<{remaining:>7}, {rate_fmt}{postfix}]'
-    # bar_format = '{l_bar}{bar:10}{r_bar}'
-    pbar = trange(n_episodes, unit="ep", bar_format=bar_format, ascii=True)
-    for idx_epi in pbar:
-        state = env.reset()
-        score = 0
-        for idx_step in range(max_steps):
-            action = agent.getAction(state, epsilon)
-            next_state, reward, done, _ = env.step(action)
-            agent.save2memory(state, action, reward, next_state, done)
+        # Q-Networks
+        self.qnetwork_local = QNetwork(state_size, action_size, seed)
+        self.qnetwork_target = QNetwork(state_size, action_size, seed)
+        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LEARNING_RATE)
+
+        # Replay memory
+        self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE, seed)
+
+        # Time step (for updating every UPDATE_EVERY steps)
+        self.t_step = 0
+        self.epsilon = 1.0
+
+    def step(self, state, action, reward, next_state, done):
+        # Save experience in replay memory
+        self.memory.add(state, action, reward, next_state, done)
+
+        # Learn every UPDATE_EVERY time steps
+        self.t_step = (self.t_step + 1) % UPDATE_EVERY
+        if self.t_step == 0:
+            # Learn from replay memory if enough samples are available
+            if len(self.memory) > BATCH_SIZE:
+                experiences = self.memory.sample()
+                self.learn(experiences[0], experiences[1], experiences[2], experiences[3], experiences[4])
+
+    def act(self, state, eps=0.):
+        """Act using an epsilon-greedy strategy."""
+        state = torch.from_numpy(state).float().unsqueeze(0)
+        self.qnetwork_local.eval()
+        with torch.no_grad():
+            q_values = self.qnetwork_local(state)
+        self.qnetwork_local.train()
+
+        if random.random() > self.epsilon:
+            return np.argmax(q_values.cpu().data.numpy())
+        else:
+            return random.choice(np.arange(self.action_size))
+
+    def learn(self, states, actions, rewards, next_states, dones):
+        """Update value parameters using a batch of experiences."""
+        # Get max predicted Q values from target model (for next states)
+        q_targets_next = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
+        # Compute Q targets for current states
+        q_targets = rewards + (GAMMA * q_targets_next * (1 - dones))
+
+        # Get expected Q values from local model
+        q_expected = self.qnetwork_local(states).gather(1, actions)
+
+        # Compute loss (MSE)
+        loss = F.mse_loss(q_expected, q_targets)
+
+        # Minimize the loss
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        # Update target network (soft update)
+        self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
+
+        # Decay epsilon for exploration
+        self.epsilon = max(self.epsilon * EPSILON_DECAY, EPSILON_MIN)
+
+    def soft_update(self, local_model, target_model, tau):
+        """Soft update target model parameters towards local model parameters."""
+        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+            target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+
+def evaluate(env, agent):
+    """Evaluate agent's performance on a single episode."""
+    state = env.reset()
+    total_reward = 0
+    done = False
+    while not done:
+        action = agent.act(state)
+        next_state, reward, done, _ = env.step(action)
+        total_reward += reward
+        state = next_state
+    return total_reward
+
+def train_dqn(train_env, test_env):
+    """Train DQN agent on the Lunar Lander environment."""
+    MAX_EPISODES = 2000  # Maximum number of training episodes
+    N_TRIALS = 100        # Number of episodes to consider for mean reward
+    PRINT_EVERY = 10      # Print frequency
+    consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
+    REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
+    REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
+
+    # Initialize agent based on environment
+    agent = Agent(train_env.observation_space.shape[0], train_env.action_space.n, 0)
+
+    # Lists to store rewards
+    train_rewards = []
+    test_rewards = []
+
+    for episode in range(1, MAX_EPISODES + 1):
+        state = train_env.reset()
+        episode_reward = 0
+        for t in range(train_env._max_episode_steps):
+            action = agent.act(state)
+            next_state, reward, done, _ = train_env.step(action)
+            agent.step(state, action, reward, next_state, done)
             state = next_state
-            score += reward
+            episode_reward += reward
 
             if done:
                 break
 
-        score_hist.append(score)
-        score_avg = np.mean(score_hist[-100:])
-        epsilon = max(eps_end, epsilon*eps_decay)
+        train_rewards.append(episode_reward)
+        test_reward = evaluate(test_env, agent)
+        test_rewards.append(test_reward)
 
-        pbar.set_postfix_str(f"Score: {score: 7.2f}, 100 score avg: {score_avg: 7.2f}")
-        pbar.update(0)
-
-        # if (idx_epi+1) % 100 == 0:
-        #     print(" ")
-        #     sleep(0.1)
-
-        # Early stop
-        if len(score_hist) >= 100:
-            if score_avg >= target:
-                break
-
-    if (idx_epi+1) < n_episodes:
-        print("\nTarget Reached!")
-    else:
-        print("\nDone!")
-        
-    if chkpt:
-        torch.save(agent.net_eval.state_dict(), 'checkpoint.pth')
-
-    return score_hist
-
-#Test Lunar Lander
-def testLander(env, agent, loop=3):
-    for i in range(loop):
-        state = env.reset()
-        for idx_step in range(500):
-            action = agent.getAction(state, epsilon=0)
-            env.render()
-            state, reward, done, _ = env.step(action)
-            if done:
-                break
-    env.close()
+        mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
+        mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
     
-def plotScore(scores):
-    plt.figure()
-    plt.plot(scores)
-    plt.title("Score History")
-    plt.xlabel("Episodes")
+        if episode % PRINT_EVERY == 0:
+            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
-BATCH_SIZE = 128
-LR = 1e-3
-EPISODES = 5000
-TARGET_SCORE = 250.     # early training stop at avg score of last 100 episodes
-GAMMA = 0.99            # discount factor
-MEMORY_SIZE = 10000     # max memory buffer size
-LEARN_STEP = 5          # how often to learn
-TAU = 1e-3              # for soft update of target parameters
-SAVE_CHKPT = False      # save trained network .pth file
+        if test_env.unwrapped.spec.id == 'CartPole-v0':
+            if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
+                consecutive_episodes += 1
+                if consecutive_episodes >= 100:
+                    print(f'Reached reward threshold in {episode} episodes for CartPole')
+                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode
+            else:
+                consecutive_episodes = 0
+        elif test_env.unwrapped.spec.id == 'LunarLander-v2':
+            if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
+                print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
 
-env = gym.make('LunarLander-v2')
-num_states = env.observation_space.shape[0]
-num_actions = env.action_space.n
-agent = DQN(
-    n_states = num_states,
-    n_actions = num_actions,
-    batch_size = BATCH_SIZE,
-    lr = LR,
-    gamma = GAMMA,
-    mem_size = MEMORY_SIZE,
-    learn_step = LEARN_STEP,
-    tau = TAU,
-    )
-score_hist = train(env, agent, n_episodes=EPISODES, target=TARGET_SCORE, chkpt=SAVE_CHKPT)
-plotScore(score_hist)
+    print("Did not reach reward threshold")
+    return train_rewards, test_rewards, None, episode
+
+train_env = gym.make("CartPole-v0")
+test_env = gym.make("CartPole-v0")
+
+train_dqn(train_env, test_env)
+
+# cartpole state_size 4 action_size 2
+# lunar lander state_size 8 action_size 4
