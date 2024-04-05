@@ -157,12 +157,12 @@ def evaluate(env, policy):
         episode_reward += reward
         
     return episode_reward
-def train_a2c_3(train_env, test_env):
+def train_a2c_2(train_env, test_env):
     MAX_EPISODES = 2000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.0005
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -209,10 +209,3 @@ def train_a2c_3(train_env, test_env):
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
-
-"""
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
-train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
-"""

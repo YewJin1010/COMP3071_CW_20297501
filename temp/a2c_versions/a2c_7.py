@@ -4,12 +4,11 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as distributions
 
-import matplotlib.pyplot as plt
 import numpy as np
 import gym
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
         super().__init__()
         
         self.net = nn.Sequential(
@@ -25,10 +24,10 @@ class MLP(nn.Module):
     def forward(self, x):
         x = self.net(x)
         return x
+    
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
         super().__init__()
-        
         self.actor = actor
         self.critic = critic
         
@@ -44,10 +43,15 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor):
-    
+def train(env, policy, optimizer, discount_factor, learning_rate):
     policy.train()
-    
+        
+    # Initialize state means and stds (for online calculation)
+    state_means = np.zeros(env.observation_space.shape[0])  # Adjust shape if needed
+    state_stds = np.ones(env.observation_space.shape[0])  # Avoid zero division initially
+
+    states = [] 
+    actions = []
     log_prob_actions = []
     values = []
     rewards = []
@@ -58,83 +62,90 @@ def train(env, policy, optimizer, discount_factor):
 
     while not done:
 
-        state = torch.FloatTensor(state).unsqueeze(0)
+        if isinstance(state, tuple):
+            state, _ = state
 
-        action_pred = policy.actor(state)
-        value_pred = policy.critic(state)
-                
-        action_prob = F.softmax(action_pred, dim = -1)
-                
+        state_means = (1 - learning_rate) * state_means + learning_rate * state  # Learning rate of LEARNING_RATE
+        state_stds = (1 - learning_rate) * state_stds + learning_rate * (state - state_means) ** 2
+
+        state = torch.FloatTensor((state - state_means) / state_stds).unsqueeze(0)
+
+        states.append(state)        
+        action_pred, value_pred = policy(state)
+        action_prob = F.softmax(action_pred, dim=-1)
         dist = distributions.Categorical(action_prob)
 
-        action = dist.sample()
-        
+        action = dist.sample()        
         log_prob_action = dist.log_prob(action)
-        
-        state, reward, done, _ = env.step(action.item())
+        state, reward, done, _= env.step(action.item())
 
+        actions.append(action)
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
-
+        
         episode_reward += reward
     
+    states = torch.cat(states)
+    actions = torch.cat(actions)    
     log_prob_actions = torch.cat(log_prob_actions)
     values = torch.cat(values).squeeze(-1)
-    
+
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
+    # Compute policy and value losses using a clipped surrogate objective
+    policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer)
 
     return policy_loss, value_loss, episode_reward
-def calculate_returns(rewards, discount_factor, normalize = True):
-    
+
+def calculate_returns(rewards, discount_factor, normalize=True):
     returns = []
     R = 0
-    
     for r in reversed(rewards):
         R = r + R * discount_factor
         returns.insert(0, R)
-        
     returns = torch.tensor(returns)
-    
     if normalize:
-        
         returns = (returns - returns.mean()) / returns.std()
-        
     return returns
-def calculate_advantages(returns, values, normalize = True):
-    
+
+def calculate_advantages(returns, values, normalize=True):
     advantages = returns - values
-    
     if normalize:
-        
         advantages = (advantages - advantages.mean()) / advantages.std()
-        
     return advantages
-def update_policy(advantages, log_prob_actions, returns, values, optimizer):
-        
-    advantages = advantages.detach()
-    returns = returns.detach()
-        
-    policy_loss = - (advantages * log_prob_actions).sum()
+
+def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer):
     
-    value_loss = F.smooth_l1_loss(returns, values).sum()
-        
+    total_policy_loss = 0 
+    total_value_loss = 0
+
+    policy.train()
+
+    action_pred, value_pred = policy(states)
+    action_prob = F.softmax(action_pred, dim=-1)
+    dist = distributions.Categorical(action_prob)
+    
+    new_log_prob_actions = dist.log_prob(actions)
+
+    policy_loss = -(advantages * (new_log_prob_actions - log_prob_actions.detach())).mean()
+    value_loss = F.smooth_l1_loss(returns, value_pred.squeeze(-1)).mean()
+
     optimizer.zero_grad()
-    
     policy_loss.backward()
     value_loss.backward()
-    
+
     optimizer.step()
-    
-    return policy_loss.item(), value_loss.item()
+
+    total_policy_loss += policy_loss.item()
+    total_value_loss += value_loss.item()
+
+    return total_policy_loss, total_value_loss
+
 def evaluate(env, policy):
     
     policy.eval()
-    
-    rewards = []
     done = False
     episode_reward = 0
 
@@ -142,22 +153,24 @@ def evaluate(env, policy):
 
     while not done:
 
+        if isinstance(state, tuple):
+            state, _ = state
         state = torch.FloatTensor(state).unsqueeze(0)
 
         with torch.no_grad():
         
             action_pred, _ = policy(state)
 
-            action_prob = F.softmax(action_pred, dim = -1)
+            action_prob = F.softmax(action_pred, dim=-1)
                 
-        action = torch.argmax(action_prob, dim = -1)
+        action = torch.argmax(action_prob, dim=-1)
                 
-        state, reward, done, _ = env.step(action.item())
+        state, reward, done, _= env.step(action.item())
 
         episode_reward += reward
-        
     return episode_reward
-def train_a2c_2(train_env, test_env):
+
+def train_a2c(train_env, test_env):
     MAX_EPISODES = 2000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
@@ -183,7 +196,7 @@ def train_a2c_2(train_env, test_env):
     test_rewards = []
 
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, LEARNING_RATE)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
@@ -209,10 +222,3 @@ def train_a2c_2(train_env, test_env):
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
-
-"""
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
-train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
-"""
