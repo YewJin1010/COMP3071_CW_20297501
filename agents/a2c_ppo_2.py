@@ -8,23 +8,22 @@ import numpy as np
 import gym
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
         super().__init__()
         
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
             nn.Dropout(dropout),
-            nn.PReLU(),
             nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
             nn.Dropout(dropout),
-            nn.PReLU(),
             nn.Linear(hidden_dim, output_dim)
         )
         
     def forward(self, x):
-        x = self.net(x)
-        return x
-    
+        return self.net(x)
+
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
         super().__init__()
@@ -32,10 +31,10 @@ class ActorCritic(nn.Module):
         self.critic = critic
         
     def forward(self, state):
-        
+        if not isinstance(state, torch.Tensor):
+            state = torch.tensor(state, dtype=torch.float32)
         action_pred = self.actor(state)
         value_pred = self.critic(state)
-        
         return action_pred, value_pred
 
 def init_weights(m):
@@ -43,10 +42,9 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor):
-    
+def train(env, policy, optimizer, discount_factor, ppo_clip):
     policy.train()
-    
+
     states = []
     actions = []
     log_prob_actions = []
@@ -64,13 +62,10 @@ def train(env, policy, optimizer, discount_factor):
         state = torch.FloatTensor(state).unsqueeze(0)
         states.append(state)
         action_pred, value_pred = policy(state)
-                
-        action_prob = F.softmax(action_pred, dim = -1)
-                
+        action_prob = F.softmax(action_pred, dim=-1)
         dist = distributions.Categorical(action_prob)
 
         action = dist.sample()
-        
         log_prob_action = dist.log_prob(action)
         
         state, reward, done, _ = env.step(action.item())
@@ -89,7 +84,8 @@ def train(env, policy, optimizer, discount_factor):
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
+    # Compute policy and value losses using a clipped surrogate objective
+    policy_loss, value_loss = update_policy(policy, states, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip)
 
     return policy_loss, value_loss, episode_reward
 
@@ -110,35 +106,57 @@ def calculate_advantages(returns, values, normalize=True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(advantages, log_prob_actions, returns, values, optimizer):
-        
+def update_policy(policy, states, actions, advantages, log_prob_actions, returns, values, optimizer, ppo_clip):
     advantages = advantages.detach()
     returns = returns.detach()
-        
-    policy_loss = - (advantages * log_prob_actions).sum()
-    
-    value_loss = F.smooth_l1_loss(returns, values).sum()
-        
+
+    # Get action probabilities and value predictions
+    action_pred, value_pred = policy(states)
+    value_pred = value_pred.squeeze(-1)
+    action_prob = F.softmax(action_pred, dim=-1)
+    dist = distributions.Categorical(action_prob)
+
+    # Calculate new log probabilities for the chosen actions
+    new_log_prob_actions = dist.log_prob(actions)
+
+    # Compute policy ratio and clip it
+    policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions)
+    clipped_policy_ratio = torch.clamp(policy_ratio, min=1.0 - ppo_clip, max=1.0 + ppo_clip)
+
+    # Compute PPO-style policy loss
+    policy_loss_1 = policy_ratio * advantages
+    policy_loss_2 = clipped_policy_ratio * advantages
+    policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
+
+    # Expand value predictions for consistency with returns
+    value_pred_expanded = value_pred.expand_as(returns)
+
+    # Compute value loss (smooth L1 loss)
+    value_loss = F.smooth_l1_loss(returns, value_pred_expanded).mean()
+
+    # Total loss
+    loss = policy_loss + value_loss
+
+    # Backpropagation and optimization
     optimizer.zero_grad()
-    
-    policy_loss.backward()
-    value_loss.backward()
-    
+    loss.backward()
     optimizer.step()
-    
+
     return policy_loss.item(), value_loss.item()
+
 def evaluate(env, policy):
     
     policy.eval()
     
-    rewards = []
     done = False
     episode_reward = 0
 
     state = env.reset()
 
     while not done:
-
+        
+        if isinstance(state, tuple):
+            state, _ = state
         state = torch.FloatTensor(state).unsqueeze(0)
 
         with torch.no_grad():
@@ -154,19 +172,21 @@ def evaluate(env, policy):
         episode_reward += reward
         
     return episode_reward
-def train_a2c(train_env, test_env):
+
+def train_a2c_ppo(train_env, test_env): 
     MAX_EPISODES = 2000
     DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 100
+    N_TRIALS = 25
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.001
+    PPO_CLIP = 0.2
+    LEARNING_RATE = 0.0005
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
-    OUTPUT_DIM = train_env.action_space.n
+    OUTPUT_DIM = test_env.action_space.n
 
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
@@ -178,16 +198,19 @@ def train_a2c(train_env, test_env):
 
     train_rewards = []
     test_rewards = []
-
-    for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+    
+    for episode in range(1, MAX_EPISODES+1):
+        
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_CLIP)
+        
         test_reward = evaluate(test_env, policy)
+        
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
-
+        
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-
+        
         if episode % PRINT_EVERY == 0:
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
@@ -202,14 +225,7 @@ def train_a2c(train_env, test_env):
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
+                return train_rewards, test_rewards, None, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
-
-"""
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
-train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
-"""

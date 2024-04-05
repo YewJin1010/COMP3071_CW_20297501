@@ -22,7 +22,8 @@ class MLP(nn.Module):
         )
         
     def forward(self, x):
-        return self.net(x)
+        x = self.net(x)
+        return x
 
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
@@ -31,10 +32,10 @@ class ActorCritic(nn.Module):
         self.critic = critic
         
     def forward(self, state):
-        if not isinstance(state, torch.Tensor):
-            state = torch.tensor(state, dtype=torch.float32)
+        
         action_pred = self.actor(state)
         value_pred = self.critic(state)
+        
         return action_pred, value_pred
 
 def init_weights(m):
@@ -107,47 +108,35 @@ def calculate_advantages(returns, values, normalize=True):
     return advantages
 
 def update_policy(policy, states, actions, advantages, log_prob_actions, returns, values, optimizer, ppo_clip):
+    
     advantages = advantages.detach()
     returns = returns.detach()
 
-    # Get action probabilities and value predictions
     action_pred, value_pred = policy(states)
-    value_pred = value_pred.squeeze(-1)
     action_prob = F.softmax(action_pred, dim=-1)
     dist = distributions.Categorical(action_prob)
 
-    # Calculate new log probabilities for the chosen actions
     new_log_prob_actions = dist.log_prob(actions)
 
-    # Compute policy ratio and clip it
-    policy_ratio = torch.exp(new_log_prob_actions - log_prob_actions)
-    clipped_policy_ratio = torch.clamp(policy_ratio, min=1.0 - ppo_clip, max=1.0 + ppo_clip)
+    # Compute surrogate objective
+    ratio = torch.exp(new_log_prob_actions - log_prob_actions.detach())
+    surrogate_1 = ratio * advantages
+    surrogate_2 = torch.clamp(ratio, 1.0 - ppo_clip, 1.0 + ppo_clip) * advantages
+    policy_loss = -torch.min(surrogate_1, surrogate_2).mean()
 
-    # Compute PPO-style policy loss
-    policy_loss_1 = policy_ratio * advantages
-    policy_loss_2 = clipped_policy_ratio * advantages
-    policy_loss = -torch.min(policy_loss_1, policy_loss_2).mean()
+    value_loss = F.smooth_l1_loss(returns, values).mean()
 
-    # Expand value predictions for consistency with returns
-    value_pred_expanded = value_pred.expand_as(returns)
-
-    # Compute value loss (smooth L1 loss)
-    value_loss = F.smooth_l1_loss(returns, value_pred_expanded).mean()
-
-    # Total loss
-    loss = policy_loss + value_loss
-
-    # Backpropagation and optimization
     optimizer.zero_grad()
-    loss.backward()
+    policy_loss.backward()
+    value_loss.backward()
     optimizer.step()
 
     return policy_loss.item(), value_loss.item()
 
+
 def evaluate(env, policy):
     
     policy.eval()
-    
     done = False
     episode_reward = 0
 
@@ -179,7 +168,7 @@ def train_a2c_ppo(train_env, test_env):
     N_TRIALS = 25
     PRINT_EVERY = 10
     PPO_CLIP = 0.2
-    LEARNING_RATE = 0.0005
+    LEARNING_RATE = 0.001
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -225,7 +214,14 @@ def train_a2c_ppo(train_env, test_env):
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, None, episode
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
+
+"""
+train_env = gym.make('CartPole-v0')
+test_env = gym.make('CartPole-v0')
+
+train_a2c_ppo(train_env, test_env)
+"""
