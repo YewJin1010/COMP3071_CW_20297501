@@ -79,7 +79,6 @@ def select_agent():
     print("3. DQN")
     print("4. A2CPPO") 
     print("5. A2CBuffer")
-    print("6. All")
     
     while True:
         try:

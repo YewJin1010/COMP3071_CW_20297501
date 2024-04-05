@@ -29,3 +29,6 @@ Feel free to provide the maximum fuel capacity
 
 Report Writing: 
 can we reuse literature from proposal
+
+DQN-like Target Network: Use a separate critic network, similar to DQN, to estimate state values for the actor network during policy updates.
+Prioritized Experience Replay: Implement prioritized experience replay from DQN to focus on experiences with high learning importance in A2C/PPO.
