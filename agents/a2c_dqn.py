@@ -6,6 +6,7 @@ import torch.distributions as distributions
 
 import numpy as np
 import gym
+import random
 
 class MLP(nn.Module):
   def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
@@ -51,6 +52,7 @@ def init_weights(m):
     m.bias.data.fill_(0)
 
 def train(env, policy, optimizer, discount_factor):
+  EPSILON = 1.0
 
   policy.train()
 
@@ -73,6 +75,13 @@ def train(env, policy, optimizer, discount_factor):
     action_pred, value_pred = policy(state)
 
     action_prob = F.softmax(action_pred, dim=-1)
+
+    p = random.random()
+    if p <= EPSILON:
+        action = env.action_space.sample()
+    else:
+        action = torch.argmax(action_prob, dim=-1)
+
     dist = distributions.Categorical(action_prob)
 
     action = dist.sample()
@@ -93,6 +102,9 @@ def train(env, policy, optimizer, discount_factor):
   # Detach gradients from advantages and returns for policy and value updates
   advantages = calculate_advantages(returns, policy.critic(states).squeeze(-1))
 
+  # Decay epsilon after each episode
+  EPSILON *= 0.999
+  
   policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, policy.critic, optimizer, states, policy)
 
   # Update target network using soft update
@@ -192,7 +204,7 @@ def train_a2c_dqn(train_env, test_env):
     policy = ActorCritic(actor, critic, target_critic)
     policy.apply(init_weights)
 
-    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE, weight_decay=1e-2)
+    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 
     train_rewards = []
     test_rewards = []

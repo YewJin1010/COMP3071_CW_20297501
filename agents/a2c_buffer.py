@@ -132,7 +132,7 @@ def evaluate(env, policy):
     return episode_reward
 
 
-def train_a2c(train_env, test_env):
+def train_a2c_buffer(train_env, test_env):
     """
     Trains the A2C agent with experience replay in multiple environments.
     """
@@ -201,7 +201,3 @@ def train_a2c(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
-train_env = gym.make('CartPole-v0')
-test_env = gym.make('CartPole-v0')
-
-train_rewards, test_rewards, reward_threshold, episode = train_a2c(train_env, test_env)
