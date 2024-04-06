@@ -58,6 +58,7 @@ def train(env, policy, optimizer, discount_factor):
   actions = []
   log_prob_actions = []
   rewards = []
+  values = []
   done = False
   episode_reward = 0
 
@@ -87,8 +88,8 @@ def train(env, policy, optimizer, discount_factor):
   states = torch.cat(states)
   actions = torch.cat(actions)
   log_prob_actions = torch.cat(log_prob_actions)
-  returns = calculate_returns(rewards, discount_factor)
 
+  returns = calculate_returns(rewards, discount_factor)
   # Detach gradients from advantages and returns for policy and value updates
   advantages = calculate_advantages(returns, policy.critic(states).squeeze(-1))
 
@@ -96,7 +97,7 @@ def train(env, policy, optimizer, discount_factor):
 
   # Update target network using soft update
   policy.update_target()
-
+  
   return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):
@@ -165,7 +166,7 @@ def evaluate(env, policy):
   return episode_reward
 
 
-def train_a2c(train_env, test_env):
+def train_a2c_dqn(train_env, test_env):
     """
     Trains the A2C agent with DQN-like target network in multiple environments.
     """
@@ -191,7 +192,7 @@ def train_a2c(train_env, test_env):
     policy = ActorCritic(actor, critic, target_critic)
     policy.apply(init_weights)
 
-    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE, weight_decay=1e-2)
 
     train_rewards = []
     test_rewards = []
@@ -224,7 +225,9 @@ def train_a2c(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
+"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, reward_threshold, episode = train_a2c(train_env, test_env)
+train_rewards, test_rewards, reward_threshold, episode = train_a2c_dqn(train_env, test_env)
+"""

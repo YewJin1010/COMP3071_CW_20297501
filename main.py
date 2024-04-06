@@ -11,7 +11,7 @@ import csv
 from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
-from agents.a2c_ppo import train_a2c_ppo
+from agents.a2c_dqn import train_a2c_dqn
 from agents.a2c_buffer import train_a2c_buffer
 
 def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, now):
@@ -43,6 +43,22 @@ def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, 
         f.write("Episode\tTrain Reward\tTest Reward\n")
         for i in range(len(train_rewards)):
             f.write(f"{i+1}\t{train_rewards[i]}\t{test_rewards[i]}\n")
+
+def select_experiment():
+    print("Select experiment to run:")
+    print("1. Experiment with standard Lunar Lander environment")
+    print("2. Experiment with custom landing pad zone")
+    print("3. Experiment with custom maximum fuel capacity")
+
+    while True:
+        try:
+            experiment_selection = int(input("Enter the number of the experiment: "))
+            if experiment_selection in [1, 2, 3]:
+                return experiment_selection
+            else:
+                print("Invalid input. Please enter either 1, 2 or 3.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
 def select_env():
     print("Select environment to train:")
@@ -77,7 +93,7 @@ def select_agent():
     print("1. A2C")
     print("2. PPO")
     print("3. DQN")
-    print("4. A2CPPO") 
+    print("4. A2C_DQN") 
     print("5. A2CBuffer")
     
     while True:
@@ -93,13 +109,26 @@ def select_agent():
 if __name__ == "__main__":
     env_name = select_env()
     train_env, test_env = create_env(env_name)
-    
+
+    if env_name == "LunarLander-v2":
+        experiment_selection = select_experiment()
+        if experiment_selection == 2:
+            # Modify the landing pad zone
+            landing_zone = float(input("Enter custom landing pad zone: "))
+            train_env.env.landing_zone = landing_zone
+            test_env.env.landing_zone = landing_zone
+        elif experiment_selection == 3:
+            # Modify the maximum fuel capacity
+            max_fuel = float(input("Enter custom maximum fuel capacity: "))
+            train_env.env.max_fuel = max_fuel
+            test_env.env.max_fuel = max_fuel
+            
     agent_selection = select_agent()
     agents = {
         1: ("A2C", train_a2c),
         2: ("PPO", train_ppo),
         3: ("DQN", train_dqn),
-        4: ("A2CPPO", train_a2c_ppo),
+        4: ("A2C_DQN", train_a2c_dqn),
         5: ("A2CBuffer", train_a2c_buffer),
     }
     
@@ -109,3 +138,4 @@ if __name__ == "__main__":
     now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
     plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
     write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
+
