@@ -212,5 +212,5 @@ def train_a2c(train_env, test_env):
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
+train_rewards, test_rewards, _, _ = train_a2c(train_env, test_env)
 """

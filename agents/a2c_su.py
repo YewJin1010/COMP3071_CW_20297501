@@ -26,24 +26,31 @@ class MLP(nn.Module):
         return x
     
 class ActorCritic(nn.Module):
-    def __init__(self, actor, critic):
+    def __init__(self, actor, critic, target_actor, target_critic):
         super().__init__()
         self.actor = actor
         self.critic = critic
-        
+        self.target_actor = target_actor
+        self.target_critic = target_critic
+
     def forward(self, state):
-        
         action_pred = self.actor(state)
         value_pred = self.critic(state)
-        
         return action_pred, value_pred
+
+    def soft_update(self, tau):
+        for target_param, local_param in zip(self.target_actor.parameters(), self.actor.parameters()):
+            target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+        for target_param, local_param in zip(self.target_critic.parameters(), self.critic.parameters()):
+            target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
+
 
 def init_weights(m):
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor):
+def train(env, policy, optimizer, discount_factor, tau):
     
     policy.train()
     
@@ -90,6 +97,8 @@ def train(env, policy, optimizer, discount_factor):
     advantages = calculate_advantages(returns, values)
     
     policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
+
+    policy.soft_update(tau)
 
     return policy_loss, value_loss, episode_reward
 
@@ -164,6 +173,7 @@ def train_a2c_su(train_env, test_env):
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
+    TAU = 1e-3              # Target network update factor
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -171,8 +181,10 @@ def train_a2c_su(train_env, test_env):
 
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
+    target_actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
+    target_critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
 
-    policy = ActorCritic(actor, critic)
+    policy = ActorCritic(actor, critic, target_actor, target_critic)
     policy.apply(init_weights)
 
     optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
@@ -181,7 +193,7 @@ def train_a2c_su(train_env, test_env):
     test_rewards = []
 
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, TAU)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
@@ -208,9 +220,8 @@ def train_a2c_su(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
-"""
+
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
-"""
+train_rewards, test_rewards, _, _ = train_a2c_su(train_env, test_env)
