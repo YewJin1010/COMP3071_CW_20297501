@@ -231,8 +231,9 @@ def train_a2c_ppo(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
-
+"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
 train_a2c_ppo(train_env, test_env)
+"""

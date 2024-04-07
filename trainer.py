@@ -5,16 +5,18 @@ from gym.envs import box2d
 import matplotlib.pyplot as plt
 import os
 import datetime
+import csv
 
 # Import agents
 from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
+from agents.a2c_dqn import train_a2c_dqn
 from agents.a2c_ppo import train_a2c_ppo
-from agents.a2c_buffer import train_a2c_buffer
 
-def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, params, now):
-    plt.figure(figsize=(12,8))
+def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, now):
+    """Plot training and testing rewards."""
+    plt.figure(figsize=(12, 8))
     plt.plot(test_rewards, label='Test Reward')
     plt.plot(train_rewards, label='Train Reward')
     plt.xlabel('Episode', fontsize=20)
@@ -23,67 +25,119 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, para
     plt.legend(loc='lower right')
     plt.grid()
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}"
+    save_path = f"results/{env}/{agent}/plots"
     os.makedirs(save_path, exist_ok=True)
-    plt.savefig(f"results/{env}/{agent}/{agent}_{env}_{params}_{now}.png")
+    plt.savefig(f"results/{env}/{agent}/plots/{agent}_{env}_{now}.png")
 
-def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, params, now):
+def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, now):  
+    """Write results to a file."""
     # create a directory to save the results
-    save_path = f"results/{env}"
+    save_path = f"results/{env}/{agent}/logs"
     os.makedirs(save_path, exist_ok=True)
     # write results to a file
-    with open(f"results/{env}/{agent}/{agent}_{env}_{params}_{now}.txt", "w") as f:
+    with open(f"results/{env}/{agent}/logs/{agent}_{env}_{now}.txt", "w") as f:
         f.write(f"Environment: {env}\n")
         f.write(f"Agent: {agent}\n")
-        f.write(f"Parameters: {params}\n")
-        f.write(f"Episodes: {episodes}\n")
-        f.write(f"Train rewards: {train_rewards}\n")
-        f.write(f"Test rewards: {test_rewards}\n")
+        f.write(f"Solved in {episodes} Episodes\n")
         f.write(f"Reward threshold: {reward_threshold}\n")
+        f.write("Episode\tTrain Reward\tTest Reward\n")
+        for i in range(len(train_rewards)):
+            f.write(f"{i+1}\t{train_rewards[i]}\t{test_rewards[i]}\n")
 
-# Define parameter ranges
-gravity_values = [-10.0, -5.0, 1.0]  # values for gravity
-wind_power_values = [0.0, 15.0, 20.0]  # values for wind power
-turbulence_power_values = [0.0, 1.0, 2.0]  # values for turbulence power
+def select_experiment():
+    print("Select experiment to run:")
+    print("1. Experiment with standard Lunar Lander environment")
+    print("2. Experiment with custom landing pad zone")
+    print("3. Experiment with custom maximum fuel capacity")
 
-agents = ["PPO", "A2C", "DQN"]
+    while True:
+        try:
+            experiment_selection = int(input("Enter the number of the experiment: "))
+            if experiment_selection in [1, 2, 3]:
+                return experiment_selection
+            else:
+                print("Invalid input. Please enter either 1, 2 or 3.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
-for agent in agents:
-    for gravity in gravity_values:
-        for wind_power in wind_power_values:
-            for turbulence_power in turbulence_power_values:
-                # Create environments with current parameter values
-                train_env = gym.make(
-                    "LunarLander-v2",
-                    continuous=False,
-                    gravity=gravity,
-                    enable_wind=wind_power != 0,
-                    wind_power=wind_power,
-                    turbulence_power=turbulence_power,
-                )
+def select_env():
+    print("Select environment to train:")
+    print("1. LunarLander")
+    print("2. CartPole")
+    
+    while True:
+        try:
+            env_selection = int(input("Enter the number of the environment: "))
+            if env_selection == 1:
+                return "LunarLander-v2"
+            elif env_selection == 2:
+                return "CartPole-v0"
+            else:
+                print("Invalid input. Please enter either 1 or 2.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
-                test_env = gym.make(
-                    "LunarLander-v2",
-                    continuous=False,
-                    gravity=gravity,
-                    enable_wind=wind_power != 0,
-                    wind_power=wind_power,
-                    turbulence_power=turbulence_power,
-                )
+def create_env(env_name):
+    train_env = gym.make(env_name)
+    test_env = gym.make(env_name)
+    
+    seed = 1234
+    train_env.seed(seed)
+    test_env.seed(seed + 1)
+    
+    return train_env, test_env
 
-                # Train current agent
-                if agent == "PPO":
-                    train_rewards, test_rewards, reward_threshold, episode = train_ppo(train_env, test_env)
-                elif agent == "A2C":
-                    train_rewards, test_rewards, reward_threshold, episode = train_a2c(train_env, test_env)
-                elif agent == "DQN":
-                    train_rewards, test_rewards, reward_threshold, episode = train_dqn(train_env, test_env)
-                else:
-                    print("Unknown agent:", agent)
-                    continue
+def select_agent():
+    """Select the agent to train."""
+    print("Select agent to train:")
+    print("1. PPO")
+    print("2. A2C")
+    print("3. DQN")
+    print("4. A2C_DQN") 
+    print("5. A2C_PPO")
+    
+    while True:
+        try:
+            agent_selection = int(input("Enter the number of the agent: "))
+            if agent_selection in range(1, 6):
+                return agent_selection
+            else:
+                print("Invalid input. Please enter a number between 1 and 5.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
-                # Save results
-                now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-                params = f"gravity_{gravity}_wind_{wind_power}_turbulence_{turbulence_power}"
-                plot_results(train_rewards, test_rewards, reward_threshold, "LunarLander", agent, params, now)
-                write_results(episode, train_rewards, test_rewards, reward_threshold, "LunarLander", agent, params, now)
+env_name = select_env()
+train_env, test_env = create_env(env_name)
+
+if env_name == "LunarLander-v2":
+    experiment_selection = select_experiment()
+    if experiment_selection == 2:
+        # Modify the landing pad zone
+        landing_zone = float(input("Enter custom landing pad zone: "))
+        train_env.env.landing_zone = landing_zone
+        test_env.env.landing_zone = landing_zone
+    elif experiment_selection == 3:
+        # Modify the maximum fuel capacity
+        max_fuel = float(input("Enter custom maximum fuel capacity: "))
+        train_env.env.max_fuel = max_fuel
+        test_env.env.max_fuel = max_fuel
+
+# Number of experiments to run
+num_experiments = 5
+        
+agents = {
+        1: ("PPO", train_ppo),
+        2: ("A2C", train_a2c),
+        3: ("DQN", train_dqn),
+        4: ("A2C_DQN", train_a2c_dqn),
+        5: ("A2C_PPO", train_a2c_ppo),
+    }
+
+for agent_id, (agent_name, agent_function) in agents.items():
+    print(f"Running experiments for {agent_name}")
+    for i in range(num_experiments):
+        train_rewards, test_rewards, reward_threshold, episode = agent_function(train_env, test_env)
+        now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+        plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
+        write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
+        print(f"Experiment {i+1}/{num_experiments} completed for {agent_name}")

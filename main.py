@@ -99,10 +99,10 @@ def select_agent():
     while True:
         try:
             agent_selection = int(input("Enter the number of the agent: "))
-            if agent_selection in range(1, 7):
+            if agent_selection in range(1, 6):
                 return agent_selection
             else:
-                print("Invalid input. Please enter a number between 1 and 6.")
+                print("Invalid input. Please enter a number between 1 and 5.")
         except ValueError:
             print("Invalid input. Please enter a number.")
 
