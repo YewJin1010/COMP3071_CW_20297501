@@ -131,7 +131,6 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
     advantages = calculate_advantages(returns, policy.critic(states).squeeze(-1))
 
     # Select log probabilities corresponding to the chosen actions
-    # (gather gathers elements from dim=1 based on actions from dim=0)
     selected_log_prob_actions = log_prob_actions.gather(1, actions.unsqueeze(1)).squeeze(1)
 
     # Calculate advantages (difference between actual and expected returns)
@@ -262,3 +261,8 @@ def train_a2c_buffer(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
+
+train_env = gym.make('CartPole-v0')
+test_env = gym.make('CartPole-v0')
+
+train_a2c_buffer(train_env, test_env)

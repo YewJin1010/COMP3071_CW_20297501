@@ -3,23 +3,35 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.distributions as distributions
-
+import random
+from collections import deque, namedtuple
 import numpy as np
 import gym
-from collections import deque
-import random
 
-# Buffer class (example using a deque)
-class ReplayBuffer(object):
-    def __init__(self, buffer_size):
-        self.buffer = deque(maxlen=buffer_size)
+class ReplayBuffer:
+  def __init__(self, capacity):
+    self.capacity = capacity
+    self.memory = deque(maxlen=capacity)
+    self.experience = namedtuple('Experience', field_names=['state', 'action', 'reward', 'next_state', 'done'])
 
-    def add(self, experience):
-        self.buffer.append(experience)
+  def add(self, state, action, reward, next_state, done):
+    e = self.experience(state, action, reward, next_state, done)
+    self.memory.append(e)
 
-    def sample(self, batch_size):
-        return random.sample(self.buffer, batch_size)
-    
+  def sample_batch(self, batch_size):
+    batch = random.sample(self.memory, batch_size)
+    states, actions, rewards, next_states, dones = zip(*batch)
+    states = np.array([s.numpy().squeeze() if isinstance(s, torch.Tensor) else s for s in states])
+    actions = np.array([a.numpy().squeeze() if isinstance(a, torch.Tensor) else a for a in actions])
+    rewards = np.array(rewards)
+    next_states = np.array([np.squeeze(s) for s in next_states])
+    dones = np.array(dones)
+
+    return states, actions, rewards, next_states, dones
+  
+  def __len__(self):
+    return len(self.memory) 
+  
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
@@ -56,60 +68,31 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor, buffer, batch_size):
+def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
+  
+    policy.train()
+    batch_states, batch_actions, batch_rewards, batch_next_states, batch_dones = replay_buffer.sample_batch(batch_size)
 
-  policy.train()
+    # Convert batch data to tensors for efficient processing
+    batch_states = torch.FloatTensor(batch_states)
+    batch_actions = torch.LongTensor(batch_actions)  # Assuming discrete actions
+    batch_rewards = torch.FloatTensor(batch_rewards)
+    batch_dones = torch.FloatTensor(batch_dones)
 
-  states, actions, log_prob_actions, values, rewards = [], [], [], [], []
-  done = False
-  episode_reward = 0
+    # Leverage the policy network for batch-wise predictions
+    batch_action_pred, batch_value_pred = policy(batch_states)
 
-  state = env.reset()
+    # Calculate loss based on batch data
+    batch_action_prob = F.softmax(batch_action_pred, dim=-1)
+    dist = distributions.Categorical(batch_action_prob)
+    batch_log_prob_actions = dist.log_prob(batch_actions)
 
-  while not done:
-    if isinstance(state, tuple):
-      state, _ = state
+    batch_returns = calculate_returns(batch_rewards, discount_factor)
+    batch_advantages = calculate_advantages(batch_returns, batch_value_pred)
 
-    state = torch.FloatTensor(state).unsqueeze(0)
-    states.append(state)
-    action_pred, value_pred = policy(state)
+    policy_loss, value_loss = update_policy(batch_advantages, batch_log_prob_actions, batch_returns, batch_value_pred, optimizer)
+    return policy_loss, value_loss
 
-    action_prob = F.softmax(action_pred, dim=-1)
-    dist = distributions.Categorical(action_prob)
-
-    action = dist.sample()
-    log_prob_action = dist.log_prob(action)
-
-    state, reward, done, _ = env.step(action.item())
-
-    actions.append(action)
-    log_prob_actions.append(log_prob_action)
-    values.append(value_pred)
-    rewards.append(reward)
-    episode_reward += reward
-
-  states = torch.cat(states)
-  actions = torch.cat(actions)
-  log_prob_actions = torch.cat(log_prob_actions)
-  values = torch.cat(values).squeeze(-1)
-
-  returns = calculate_returns(rewards, discount_factor)
-  advantages = calculate_advantages(returns, values)
-
-  # Sample a batch of experiences from the buffer
-  batch = buffer.sample(batch_size)
-  states_batch, actions_batch, rewards_batch, next_states_batch, dones_batch = zip(*batch)
-
-  states_batch = torch.cat(states_batch)
-  actions_batch = torch.cat(actions_batch)
-  rewards_batch = torch.tensor(rewards_batch, dtype=torch.float32)
-  next_states_batch = torch.cat(next_states_batch)
-  dones_batch = torch.tensor(dones_batch, dtype=torch.float32)
-
-  # Update policy using the sampled batch
-  policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer, states_batch, next_states_batch, dones_batch)
-
-  return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):
     returns = []
@@ -145,6 +128,7 @@ def update_policy(advantages, log_prob_actions, returns, values, optimizer):
     optimizer.step()
     
     return policy_loss.item(), value_loss.item()
+
 def evaluate(env, policy):
     
     policy.eval()
@@ -181,13 +165,16 @@ def train_a2c_buffer(train_env, test_env):
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
+    
+    BUFFER_SIZE = int(1e5)
+    BATCH_SIZE = 64
+    WARMUP_EPISODES = 100
+
+    replay_buffer = ReplayBuffer(capacity=BUFFER_SIZE)
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
     OUTPUT_DIM = train_env.action_space.n
-
-    BUFFER_SIZE = 10000
-    BATCH_SIZE = 64
 
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
@@ -197,14 +184,28 @@ def train_a2c_buffer(train_env, test_env):
 
     optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 
-    # Set up buffer
-    buffer = ReplayBuffer(BUFFER_SIZE)
-
     train_rewards = []
     test_rewards = []
 
+    # Replay buffer warm-up phase
+    for _ in range(WARMUP_EPISODES):
+        state = train_env.reset()
+        done = False
+        while not done:
+            if isinstance(state, tuple):
+                state, _ = state
+            action = train_env.action_space.sample()
+            next_state, reward, done, _ = train_env.step(action)
+            replay_buffer.add(state, action, reward, next_state, done)
+            state = next_state
+
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, buffer, BATCH_SIZE)
+     
+        if len(replay_buffer) >= BATCH_SIZE or episode == 1:  # Train only if enough samples in buffer
+            policy_loss, value_loss = train(train_env, policy, optimizer, DISCOUNT_FACTOR, replay_buffer, BATCH_SIZE)
+
+        # Get the episode reward
+        train_reward = evaluate(train_env, policy)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
@@ -231,9 +232,8 @@ def train_a2c_buffer(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
-"""
+
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
-"""
+train_rewards, test_rewards, _, _ = train_a2c_buffer(train_env, test_env)

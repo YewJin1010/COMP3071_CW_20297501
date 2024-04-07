@@ -8,6 +8,7 @@ from collections import deque, namedtuple
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
+import random
 
 class ReplayBuffer:
     def __init__(self, capacity):
@@ -100,6 +101,7 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
         value_pred = policy.critic(state)
 
         action_prob = F.softmax(action_pred, dim=-1)
+            
         dist = distributions.Categorical(action_prob)
 
         actions.append(action)
@@ -240,8 +242,6 @@ def train_a2c_buffer(train_env, test_env):
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
 
-        #print("train rewards: ", train_rewards)
-        #print("test rewards: ", test_rewards)
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
 
