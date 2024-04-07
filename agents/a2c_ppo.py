@@ -6,6 +6,7 @@ import torch.distributions as distributions
 
 import numpy as np
 import gym
+import random
 
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
@@ -44,6 +45,8 @@ def init_weights(m):
         m.bias.data.fill_(0)
 
 def train(env, policy, optimizer, discount_factor, ppo_clip):
+    EPSILON = 1.0
+
     policy.train()
 
     states = []
@@ -63,18 +66,18 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
         state = torch.FloatTensor(state).unsqueeze(0)
         states.append(state)
         action_pred, value_pred = policy(state)
-        action_prob = F.softmax(action_pred, dim=-1)
+        action_prob = F.softmax(action_pred, dim=-1)            
         dist = distributions.Categorical(action_prob)
 
         action = dist.sample()
         log_prob_action = dist.log_prob(action)
-        
         state, reward, done, _ = env.step(action.item())
 
         actions.append(action)
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
+
         episode_reward += reward
     
     states = torch.cat(states)
@@ -87,6 +90,13 @@ def train(env, policy, optimizer, discount_factor, ppo_clip):
     
     # Compute policy and value losses using a clipped surrogate objective
     policy_loss, value_loss = update_policy(policy, states, action, advantages, log_prob_actions, returns, values, optimizer, ppo_clip)
+
+    # L2 Regularization
+    l2_reg = 0.0
+    l2_lambda = 0.1
+    for param in policy.parameters():
+        l2_reg += torch.norm(param)
+    policy_loss += l2_lambda * l2_reg
 
     return policy_loss, value_loss, episode_reward
 
@@ -111,17 +121,19 @@ def update_policy(policy, states, actions, advantages, log_prob_actions, returns
     
     advantages = advantages.detach()
     returns = returns.detach()
+    log_prob_actions = log_prob_actions.detach()
 
     action_pred, value_pred = policy(states)
+    value_pred = value_pred.squeeze(-1)
     action_prob = F.softmax(action_pred, dim=-1)
     dist = distributions.Categorical(action_prob)
 
     new_log_prob_actions = dist.log_prob(actions)
 
     # Compute surrogate objective
-    ratio = torch.exp(new_log_prob_actions - log_prob_actions.detach())
-    surrogate_1 = ratio * advantages
-    surrogate_2 = torch.clamp(ratio, 1.0 - ppo_clip, 1.0 + ppo_clip) * advantages
+    policy_ratio = (new_log_prob_actions - log_prob_actions).exp()
+    surrogate_1 = policy_ratio * advantages
+    surrogate_2 = torch.clamp(policy_ratio, 1.0 - ppo_clip, 1.0 + ppo_clip) * advantages
     policy_loss = -torch.min(surrogate_1, surrogate_2).mean()
 
     value_loss = F.smooth_l1_loss(returns, values).mean()
@@ -168,7 +180,7 @@ def train_a2c_ppo(train_env, test_env):
     N_TRIALS = 25
     PRINT_EVERY = 10
     PPO_CLIP = 0.2
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.0005
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -219,9 +231,8 @@ def train_a2c_ppo(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
-"""
-train_env = gym.make('CartPole-v0')
-test_env = gym.make('CartPole-v0')
+
+train_env = gym.make('LunarLander-v2')
+test_env = gym.make('LunarLander-v2')
 
 train_a2c_ppo(train_env, test_env)
-"""
