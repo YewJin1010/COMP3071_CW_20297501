@@ -87,7 +87,10 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
     rewards = []
     actions = []
     states = []
-    
+    episode_reward = 0
+
+    state = env.reset()
+
     for state, action, reward, next_state, done in zip(batch_states, batch_actions, batch_rewards, batch_next_states, batch_dones):
         
         state = torch.FloatTensor(state).unsqueeze(0)
@@ -101,9 +104,12 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
 
         actions.append(action)
         log_prob_action = dist.log_prob(action)
+        next_state, reward, done, _ = env.step(action.item())
+
         log_prob_actions.append(log_prob_action)
         values.append(value_pred)
         rewards.append(reward)
+        episode_reward += reward
 
         # Add transition to replay buffer
         replay_buffer.add(state, action.item(), reward, next_state, done)
@@ -116,9 +122,9 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
     
-    policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer)
+    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
 
-    return policy_loss, value_loss, np.sum(batch_rewards)
+    return policy_loss, value_loss, episode_reward
 
 def calculate_returns(batch_rewards, discount_factor, normalize = True):
     returns = []
@@ -137,38 +143,27 @@ def calculate_advantages(returns, values, normalize = True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer):
+def update_policy(advantages, log_prob_actions, returns, values, optimizer):
     
-    total_policy_loss = 0 
-    total_value_loss = 0
-
-    action_pred = policy.actor(states)
-    value_pred = policy.critic(states)
-    action_prob = F.softmax(action_pred, dim=-1)
-    dist = distributions.Categorical(action_prob)
+    advantages = advantages.detach()
+    returns = returns.detach()
+        
+    policy_loss = - (advantages * log_prob_actions).sum()
     
-    new_log_prob_actions = dist.log_prob(actions)
-
-    policy_loss = -(advantages * (new_log_prob_actions - log_prob_actions.detach())).mean()
-    value_loss = F.smooth_l1_loss(returns, value_pred.squeeze(-1)).mean()
-
+    value_loss = F.smooth_l1_loss(returns, values).sum()
+        
     optimizer.zero_grad()
-
+    
     policy_loss.backward()
     value_loss.backward()
-
-    optimizer.step()
-
-    total_policy_loss += policy_loss.item()
-    total_value_loss += value_loss.item()
-
-    return total_policy_loss, total_value_loss
-
-
-def evaluate(env, policy, epsilon):
     
-    policy.actor.eval()
-    policy.critic.eval()
+    optimizer.step()
+    
+    return policy_loss.item(), value_loss.item()
+
+def evaluate(env, policy):
+    
+    policy.eval()
     
     rewards = []
     done = False
@@ -177,36 +172,30 @@ def evaluate(env, policy, epsilon):
     state = env.reset()
 
     while not done:
-        if isinstance(state, tuple):
-            state, _ = state
+
         state = torch.FloatTensor(state).unsqueeze(0)
+
         with torch.no_grad():
+        
             action_pred, _ = policy(state)
 
-            if np.random.rand() < epsilon:
-                action = env.action_space.sample()  # Choose a random action
-            else:
-                action_prob = F.softmax(action_pred, dim=-1)
-                action = torch.argmax(action_prob, dim=-1)
-
-        action = torch.tensor(action) if not isinstance(action, torch.Tensor) else action
+            action_prob = F.softmax(action_pred, dim = -1)
+                
+        action = torch.argmax(action_prob, dim = -1)
+                
         state, reward, done, _ = env.step(action.item())
 
         episode_reward += reward
     
-    policy.actor.train()  # Switch back to training mode
-    policy.critic.train()  # Switch back to training mode
     return episode_reward
-
-
 
 def train_a2c_buffer(train_env, test_env): 
     MAX_EPISODES = 2000
     WARMUP_EPISODES = 100
     DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 25
+    N_TRIALS = 100
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.0001
+    LEARNING_RATE = 0.001
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
@@ -216,7 +205,6 @@ def train_a2c_buffer(train_env, test_env):
 
     BUFFER_SIZE = int(1e5)
     BATCH_SIZE = 64
-    EPSILON = 0.05
 
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
@@ -242,19 +230,21 @@ def train_a2c_buffer(train_env, test_env):
             next_state, reward, done, _ = train_env.step(action)
             replay_buffer.add(state, action, reward, next_state, done)
             state = next_state
-
+    
     for episode in range(1, MAX_EPISODES+1):
         
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, replay_buffer, BATCH_SIZE)
         
-        test_reward = evaluate(test_env, policy, EPSILON)
+        test_reward = evaluate(test_env, policy)
         
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
-        
+
+        #print("train rewards: ", train_rewards)
+        #print("test rewards: ", test_rewards)
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-        
+
         if episode % PRINT_EVERY == 0:
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
@@ -269,7 +259,12 @@ def train_a2c_buffer(train_env, test_env):
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, None, episode
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
+
+train_env = gym.make('CartPole-v0')
+test_env = gym.make('CartPole-v0')
+
+train_rewards, test_rewards, reward_threshold, episodes = train_a2c_buffer(train_env, test_env)

@@ -90,11 +90,11 @@ def create_env(env_name):
 def select_agent():
     """Select the agent to train."""
     print("Select agent to train:")
-    print("1. A2C")
-    print("2. PPO")
+    print("1. PPO")
+    print("2. A2C")
     print("3. DQN")
     print("4. A2C_DQN") 
-    print("5. A2CBuffer")
+    print("5. A2C_Buffer")
     
     while True:
         try:
@@ -125,11 +125,11 @@ if __name__ == "__main__":
             
     agent_selection = select_agent()
     agents = {
-        1: ("A2C", train_a2c),
-        2: ("PPO", train_ppo),
+        1: ("PPO", train_ppo),
+        2: ("A2C", train_a2c),
         3: ("DQN", train_dqn),
         4: ("A2C_DQN", train_a2c_dqn),
-        5: ("A2CBuffer", train_a2c_buffer),
+        5: ("A2C_Buffer", train_a2c_buffer),
     }
     
     agent_name, agent_function = agents[agent_selection]

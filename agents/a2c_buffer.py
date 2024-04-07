@@ -9,24 +9,21 @@ import gym
 from collections import deque
 import random
 
+# Buffer class (example using a deque)
 class ReplayBuffer(object):
-    def __init__(self, capacity):
-        self.buffer = deque(maxlen=capacity)
+    def __init__(self, buffer_size):
+        self.buffer = deque(maxlen=buffer_size)
 
-    def push(self, state, action, reward, next_state, done):
-        self.buffer.append((state, action, reward, next_state, done))
+    def add(self, experience):
+        self.buffer.append(experience)
 
     def sample(self, batch_size):
-        states, actions, rewards, next_states, dones = zip(*random.sample(self.buffer, batch_size))
-        return states, actions, rewards, next_states, dones
-
-    def __len__(self):
-        return len(self.buffer)
-
+        return random.sample(self.buffer, batch_size)
+    
 class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
-
+        
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.Dropout(dropout),
@@ -36,22 +33,22 @@ class MLP(nn.Module):
             nn.PReLU(),
             nn.Linear(hidden_dim, output_dim)
         )
-
+        
     def forward(self, x):
         x = self.net(x)
         return x
-
+    
 class ActorCritic(nn.Module):
     def __init__(self, actor, critic):
         super().__init__()
         self.actor = actor
         self.critic = critic
-
+        
     def forward(self, state):
-
+        
         action_pred = self.actor(state)
         value_pred = self.critic(state)
-
+        
         return action_pred, value_pred
 
 def init_weights(m):
@@ -59,59 +56,99 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
+def train(env, policy, optimizer, discount_factor, buffer, batch_size):
 
-    policy.train()
+  policy.train()
 
-    states, actions, rewards, next_states, dones = replay_buffer.sample(batch_size)
+  states, actions, log_prob_actions, values, rewards = [], [], [], [], []
+  done = False
+  episode_reward = 0
 
-    # Convert numpy arrays to Tensors
-    states = torch.FloatTensor(states)
-    actions = torch.LongTensor(actions)
-    rewards = torch.FloatTensor(rewards).unsqueeze(1)
-    next_states = torch.FloatTensor(next_states)
-    dones = torch.FloatTensor(dones).unsqueeze(1)
+  state = env.reset()
 
-    # Estimate state values using the critic network
-    values = policy.critic(states).squeeze(-1)
+  while not done:
+    if isinstance(state, tuple):
+      state, _ = state
 
-    # Calculate returns using Bellman equation with consideration for done states
-    returns = rewards + (1 - dones) * discount_factor * policy.critic(next_states).squeeze(-1)
+    state = torch.FloatTensor(state).unsqueeze(0)
+    states.append(state)
+    action_pred, value_pred = policy(state)
 
-    # Detach gradients from returns to avoid propagating errors back to critic
-    returns = returns.detach()
-
-    # Calculate action probabilities and log probabilities
-    action_pred, _ = policy(states)
     action_prob = F.softmax(action_pred, dim=-1)
-    log_prob_actions = torch.log(action_prob + 1e-10)
+    dist = distributions.Categorical(action_prob)
 
-    # Select log probabilities corresponding to the chosen actions
-    # (gather gathers elements from dim=1 based on actions from dim=0)
-    selected_log_prob_actions = log_prob_actions.gather(1, actions.unsqueeze(1)).squeeze(1)
+    action = dist.sample()
+    log_prob_action = dist.log_prob(action)
 
-    # Calculate advantages (difference between actual and expected returns)
+    state, reward, done, _ = env.step(action.item())
+
+    actions.append(action)
+    log_prob_actions.append(log_prob_action)
+    values.append(value_pred)
+    rewards.append(reward)
+    episode_reward += reward
+
+  states = torch.cat(states)
+  actions = torch.cat(actions)
+  log_prob_actions = torch.cat(log_prob_actions)
+  values = torch.cat(values).squeeze(-1)
+
+  returns = calculate_returns(rewards, discount_factor)
+  advantages = calculate_advantages(returns, values)
+
+  # Sample a batch of experiences from the buffer
+  batch = buffer.sample(batch_size)
+  states_batch, actions_batch, rewards_batch, next_states_batch, dones_batch = zip(*batch)
+
+  states_batch = torch.cat(states_batch)
+  actions_batch = torch.cat(actions_batch)
+  rewards_batch = torch.tensor(rewards_batch, dtype=torch.float32)
+  next_states_batch = torch.cat(next_states_batch)
+  dones_batch = torch.tensor(dones_batch, dtype=torch.float32)
+
+  # Update policy using the sampled batch
+  policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer, states_batch, next_states_batch, dones_batch)
+
+  return policy_loss, value_loss, episode_reward
+
+def calculate_returns(rewards, discount_factor, normalize=True):
+    returns = []
+    R = 0
+    for r in reversed(rewards):
+        R = r + R * discount_factor
+        returns.insert(0, R)
+    returns = torch.tensor(returns, dtype=torch.float32)
+    if normalize:
+        returns = (returns - returns.mean()) / returns.std()
+    return returns
+
+def calculate_advantages(returns, values, normalize=True):
     advantages = returns - values
+    if normalize:
+        advantages = (advantages - advantages.mean()) / advantages.std()
+    return advantages
 
-    # Policy Loss (uses advantages and log probabilities)
-    policy_loss = - (advantages * selected_log_prob_actions).mean()
-
-    # Value Loss (uses MSE between returns and critic's value estimates)
-    value_loss = F.smooth_l1_loss(returns, values).mean()
-
+def update_policy(advantages, log_prob_actions, returns, values, optimizer):
+        
+    advantages = advantages.detach()
+    returns = returns.detach()
+        
+    policy_loss = - (advantages * log_prob_actions).sum()
+    
+    value_loss = F.smooth_l1_loss(returns, values).sum()
+        
     optimizer.zero_grad()
+    
     policy_loss.backward()
     value_loss.backward()
+    
     optimizer.step()
-
+    
     return policy_loss.item(), value_loss.item()
-
 def evaluate(env, policy):
-    """
-    Evaluates the policy on the environment by playing episodes.
-    """
+    
     policy.eval()
-
+    
     rewards = []
     done = False
     episode_reward = 0
@@ -119,30 +156,28 @@ def evaluate(env, policy):
     state = env.reset()
 
     while not done:
+
         state = torch.FloatTensor(state).unsqueeze(0)
 
         with torch.no_grad():
+        
             action_pred, _ = policy(state)
-            action_prob = F.softmax(action_pred, dim=-1)
-            action = torch.argmax(action_prob, dim=-1)
 
+            action_prob = F.softmax(action_pred, dim = -1)
+                
+        action = torch.argmax(action_prob, dim = -1)
+                
         state, reward, done, _ = env.step(action.item())
+
         episode_reward += reward
-
+        
     return episode_reward
-
-
 def train_a2c_buffer(train_env, test_env):
-    """
-    Trains the A2C agent with experience replay in multiple environments.
-    """
     MAX_EPISODES = 2000
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
     PRINT_EVERY = 10
     LEARNING_RATE = 0.001
-    REPLAY_BUFFER_CAPACITY = 10000
-    BATCH_SIZE = 32
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -151,32 +186,27 @@ def train_a2c_buffer(train_env, test_env):
     HIDDEN_DIM = 128
     OUTPUT_DIM = train_env.action_space.n
 
-    # Create actor and critic networks
+    BUFFER_SIZE = 10000
+    BATCH_SIZE = 64
+
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
 
-    # Initialize weights
     policy = ActorCritic(actor, critic)
     policy.apply(init_weights)
 
     optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 
-    replay_buffer = ReplayBuffer(REPLAY_BUFFER_CAPACITY)
+    # Set up buffer
+    buffer = ReplayBuffer(BUFFER_SIZE)
 
     train_rewards = []
     test_rewards = []
 
     for episode in range(1, MAX_EPISODES + 1):
-        # Interact with environment and fill replay buffer
-        train_reward = evaluate(train_env, policy)  # Using evaluate instead of interact
-        train_rewards.append(train_reward)
-
-        # Train the policy using samples from replay buffer
-        if len(replay_buffer) > BATCH_SIZE:
-            policy_loss, value_loss = train(train_env, policy, optimizer, DISCOUNT_FACTOR, replay_buffer, BATCH_SIZE)
-
-        # Evaluate the policy on the test environment
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, buffer, BATCH_SIZE)
         test_reward = evaluate(test_env, policy)
+        train_rewards.append(train_reward)
         test_rewards.append(test_reward)
 
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
@@ -201,3 +231,9 @@ def train_a2c_buffer(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
+"""
+train_env = gym.make('LunarLander-v2')
+test_env = gym.make('LunarLander-v2')
+
+train_rewards, test_rewards, _, _ = train_a2c_2(train_env, test_env)
+"""
