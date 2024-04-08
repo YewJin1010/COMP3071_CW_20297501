@@ -47,8 +47,8 @@ def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, 
 def select_experiment():
     print("Select experiment to run:")
     print("1. Experiment with standard Lunar Lander environment")
-    print("2. Experiment with custom landing pad zone")
-    print("3. Experiment with custom maximum fuel capacity")
+    print("2. Experiment with gravity modification")
+    print("3. Experiment with wind and turbulence modification")
 
     while True:
         try:
@@ -78,14 +78,57 @@ def select_env():
             print("Invalid input. Please enter a number.")
 
 def create_env(env_name):
-    train_env = gym.make(env_name)
-    test_env = gym.make(env_name)
+    enable_wind = False
+
+    if env_name == "CartPole-v0":
+        return gym.make(env_name), gym.make(env_name)
     
-    seed = 1234
-    train_env.seed(seed)
-    test_env.seed(seed + 1)
-    
-    return train_env, test_env
+    elif env_name == "LunarLander-v2":
+        experiment_selection = select_experiment()
+
+        if experiment_selection == 1:
+            train_env = gym.make(env_name)
+            test_env = gym.make(env_name)
+
+        elif experiment_selection == 2:
+            # Modify the gravity
+            while True:
+                gravity = float(input("Enter gravity (-10 to -1): "))
+                if -10 <= gravity <= -1:
+                    break
+                else:
+                    print("Gravity must be within the range -10 to -1. Please enter a valid value.")
+                
+            train_env = gym.make(env_name, gravity=gravity)
+            test_env = gym.make(env_name, gravity=gravity)
+
+        elif experiment_selection == 3:
+            # Modify the wind and turbulence
+            while True:
+                wind_power = float(input("Enter wind power (0 to 20): "))
+                if 0 <= wind_power <= 20:
+                    break
+                else:
+                    print("Wind power must be within the range 0 to 20. Please enter a valid value.")
+            
+            while True:
+                turbulence_power = float(input("Enter turbulence power (0 to 2): "))
+                if 0 <= turbulence_power <= 2:
+                    break
+                else:
+                    print("Turbulence power must be within the range 0 to 2. Please enter a valid value.")
+            
+            if wind_power > 0 or turbulence_power > 0:
+                enable_wind = True
+
+            train_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
+            test_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
+        
+        seed = 1234
+        train_env.seed(seed)
+        test_env.seed(seed + 1)
+        
+        return train_env, test_env
 
 def select_agent():
     """Select the agent to train."""
@@ -109,23 +152,9 @@ def select_agent():
 env_name = select_env()
 train_env, test_env = create_env(env_name)
 
-if env_name == "LunarLander-v2":
-    experiment_selection = select_experiment()
-    if experiment_selection == 2:
-        # Modify the landing pad zone
-        landing_zone = float(input("Enter custom landing pad zone: "))
-        train_env.env.landing_zone = landing_zone
-        test_env.env.landing_zone = landing_zone
-    elif experiment_selection == 3:
-        # Modify the maximum fuel capacity
-        max_fuel = float(input("Enter custom maximum fuel capacity: "))
-        train_env.env.max_fuel = max_fuel
-        test_env.env.max_fuel = max_fuel
-
 # Number of experiments to run
 num_experiments = 5
-
-"""        
+ 
 agents = {
         1: ("PPO", train_ppo),
         2: ("A2C", train_a2c),
@@ -133,9 +162,8 @@ agents = {
         4: ("A2C_DQN", train_a2c_dqn),
         5: ("A2C_SU", train_a2c_su),
     }
-    """
 
-agents = {1: ("A2C", train_a2c)}
+# agents = {1: ("A2C", train_a2c)}
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
