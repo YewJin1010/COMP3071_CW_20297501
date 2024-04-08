@@ -100,6 +100,13 @@ def train(env, policy, optimizer, discount_factor, tau):
 
     policy.soft_update(tau)
 
+    # L2 Regularization
+    l2_reg = 0.0
+    l2_lambda = 0.1
+    for param in policy.parameters():
+        l2_reg += torch.norm(param)
+    policy_loss += l2_lambda * l2_reg
+
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):
@@ -173,7 +180,7 @@ def train_a2c_su(train_env, test_env):
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
-    TAU = 1e-3              # Target network update factor
+    TAU = 1e-3 # Target network update factor
 
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
@@ -220,7 +227,7 @@ def train_a2c_su(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode
 
-
+# LunarLander-v2
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
