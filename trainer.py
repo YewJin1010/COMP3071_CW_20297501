@@ -12,7 +12,7 @@ from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
 from agents.a2c_dqn import train_a2c_dqn
-from agents.a2c_ppo import train_a2c_ppo
+from agents.a2c_su import train_a2c_su
 
 def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, now):
     """Plot training and testing rewards."""
@@ -94,7 +94,7 @@ def select_agent():
     print("2. A2C")
     print("3. DQN")
     print("4. A2C_DQN") 
-    print("5. A2C_PPO")
+    print("5. A2C_SU")
     
     while True:
         try:
@@ -124,14 +124,18 @@ if env_name == "LunarLander-v2":
 
 # Number of experiments to run
 num_experiments = 5
-        
+
+"""        
 agents = {
         1: ("PPO", train_ppo),
         2: ("A2C", train_a2c),
         3: ("DQN", train_dqn),
         4: ("A2C_DQN", train_a2c_dqn),
-        5: ("A2C_PPO", train_a2c_ppo),
+        5: ("A2C_SU", train_a2c_su),
     }
+    """
+
+agents = {1: ("A2C_SU", train_a2c_su)}
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
