@@ -91,6 +91,13 @@ def train(env, policy, optimizer, discount_factor):
     
     policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
 
+    # L2 Regularization
+    l2_reg = 0.0
+    l2_lambda = 0.1
+    for param in policy.parameters():
+        l2_reg += torch.norm(param)
+    policy_loss += l2_lambda * l2_reg
+
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):

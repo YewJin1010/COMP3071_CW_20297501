@@ -135,7 +135,7 @@ agents = {
     }
     """
 
-agents = {1: ("A2C_SU", train_a2c_su)}
+agents = {1: ("A2C", train_a2c)}
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
