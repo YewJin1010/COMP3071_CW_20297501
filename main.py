@@ -14,7 +14,7 @@ from agents.dqn import train_dqn
 from agents.a2c_dqn import train_a2c_dqn
 from agents.a2c_su import train_a2c_su
 
-def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, now):
+def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, now):
     """Plot training and testing rewards."""
     plt.figure(figsize=(12, 8))
     plt.plot(test_rewards, label='Test Reward')
@@ -25,19 +25,20 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, now)
     plt.legend(loc='lower right')
     plt.grid()
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/plots"
+    save_path = f"results/{env}/{agent}/plots/{experiment}"
     os.makedirs(save_path, exist_ok=True)
-    plt.savefig(f"results/{env}/{agent}/plots/{agent}_{env}_{now}.png")
+    plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
-def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, now):  
+def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, now):  
     """Write results to a file."""
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/logs"
+    save_path = f"results/{env}/{agent}/logs/{experiment}"
     os.makedirs(save_path, exist_ok=True)
     # write results to a file
-    with open(f"results/{env}/{agent}/logs/{agent}_{env}_{now}.txt", "w") as f:
+    with open(f"{save_path}/{agent}_{env}_{now}.txt", "w") as f:
         f.write(f"Environment: {env}\n")
         f.write(f"Agent: {agent}\n")
+        f.write(f"Experiment: {experiment}\n")
         f.write(f"Solved in {episodes} Episodes\n")
         f.write(f"Reward threshold: {reward_threshold}\n")
         f.write("Episode\tTrain Reward\tTest Reward\n")
@@ -81,16 +82,20 @@ def create_env(env_name):
     enable_wind = False
 
     if env_name == "CartPole-v0":
+        experiment = "CartPole"
+        parameter = "None"
         return gym.make(env_name), gym.make(env_name)
     
     elif env_name == "LunarLander-v2":
         experiment_selection = select_experiment()
 
         if experiment_selection == 1:
+            experiment = "standard_experiment"
             train_env = gym.make(env_name)
             test_env = gym.make(env_name)
 
         elif experiment_selection == 2:
+            experiment = "gravity_experiment"
             # Modify the gravity
             while True:
                 gravity = float(input("Enter gravity (-10 to -1): "))
@@ -103,6 +108,7 @@ def create_env(env_name):
             test_env = gym.make(env_name, gravity=gravity)
 
         elif experiment_selection == 3:
+            experiment = "wind_and_turbulence_experiment"
             # Modify the wind and turbulence
             while True:
                 wind_power = float(input("Enter wind power (0 to 20): "))
@@ -124,11 +130,19 @@ def create_env(env_name):
             train_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
             test_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
         
+        # Get parameter value based on the experiment
+        if experiment == "gravity_experiment":
+            parameter = f"Gravity = {gravity}"
+        elif experiment == "wind_and_turbulence_experiment":
+            parameter = f"Wind power = {wind_power}, Turbulence power = {turbulence_power}"
+        else:
+            parameter = "None"
+            
         seed = 1234
         train_env.seed(seed)
         test_env.seed(seed + 1)
         
-        return train_env, test_env
+        return train_env, test_env, experiment, parameter
 
 def select_agent():
     """Select the agent to train."""
@@ -151,7 +165,7 @@ def select_agent():
 
 if __name__ == "__main__":
     env_name = select_env()
-    train_env, test_env = create_env(env_name)
+    train_env, test_env, experiment, parameter = create_env(env_name)
 
     agent_selection = select_agent()
     agents = {
@@ -166,6 +180,5 @@ if __name__ == "__main__":
 
     train_rewards, test_rewards, reward_threshold, episode = agent_function(train_env, test_env)
     now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
-    write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
-
+    plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, now)
+    write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, now)
