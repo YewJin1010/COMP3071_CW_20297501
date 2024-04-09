@@ -14,7 +14,7 @@ from agents.dqn import train_dqn
 from agents.a2c_dqn import train_a2c_dqn
 from agents.a2c_su import train_a2c_su
 
-def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, now):
+def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now):
     """Plot training and testing rewards."""
     plt.figure(figsize=(12, 8))
     plt.plot(test_rewards, label='Test Reward')
@@ -24,15 +24,19 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, expe
     plt.hlines(reward_threshold, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
+    if parameter == "None":
+        parameter = "standard"
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/plots"
+    save_path = f"results/{env}/{agent}/{experiment}/{parameter}/plots"
     os.makedirs(save_path, exist_ok=True)
     plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
 def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration):  
     """Write results to a file."""
+    if parameter == "None":
+        parameter = "standard"
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/logs"
+    save_path = f"results/{env}/{agent}/{experiment}/{parameter}/logs"
     os.makedirs(save_path, exist_ok=True)
     # write results to a file
     with open(f"{save_path}/{agent}_{env}_{now}.txt", "w") as f:
@@ -183,5 +187,5 @@ if __name__ == "__main__":
 
     train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env)
     now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, now)
+    plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
     write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)

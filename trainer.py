@@ -14,7 +14,7 @@ from agents.dqn import train_dqn
 from agents.a2c_dqn import train_a2c_dqn
 from agents.a2c_su import train_a2c_su
 
-def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, now):
+def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now):
     """Plot training and testing rewards."""
     plt.figure(figsize=(12, 8))
     plt.plot(test_rewards, label='Test Reward')
@@ -24,15 +24,19 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, expe
     plt.hlines(reward_threshold, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
+    if parameter == "None":
+        parameter = "standard"
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/plots"
+    save_path = f"results/{env}/{agent}/{experiment}/{parameter}/plots"
     os.makedirs(save_path, exist_ok=True)
     plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
 def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration):  
     """Write results to a file."""
+    if parameter == "None":
+        parameter = "standard"
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/logs"
+    save_path = f"results/{env}/{agent}/{experiment}/{parameter}/logs"
     os.makedirs(save_path, exist_ok=True)
     # write results to a file
     with open(f"{save_path}/{agent}_{env}_{now}.txt", "w") as f:
@@ -155,12 +159,11 @@ env_name = select_env()
 
 # Define the parameter combinations for experiments
 experiment_parameters = [
-    {"gravity": -1},
-    {"gravity": -10},
-    {"wind_power": 1, "turbulence_power": 0.5},
-    {"wind_power": 20, "turbulence_power": 2}
+    {"gravity": -1},  # Low gravity 
+    {"gravity": -10},  # High gravity 
+    {"wind_power": 1, "turbulence_power": 0.5},  # Low wind 
+    {"wind_power": 20, "turbulence_power": 2}  # High wind
 ]
-
 
 # Number of experiments to run
 num_experiments = 5
@@ -173,8 +176,6 @@ agents = {
         5: ("A2C_SU", train_a2c_su),
     }
 
-# agents = {1: ("A2C", train_a2c)}
-
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
     for params in experiment_parameters:
@@ -185,6 +186,6 @@ for agent_id, (agent_name, agent_function) in agents.items():
             print(f"Running experiment {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
             train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-            plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, now)
+            plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
             write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)
             print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")
