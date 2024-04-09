@@ -185,7 +185,12 @@ if __name__ == "__main__":
     
     agent_name, agent_function = agents[agent_selection]
 
-    train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env)
-    now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-    plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
-    write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)
+    print("Number of experiments to run:")
+    num_experiments = int(input("Enter the number of experiments to run: "))
+
+    for i in range(num_experiments):
+        print(f"Experiment {i+1}")
+        train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env)
+        now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+        plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
+        write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)

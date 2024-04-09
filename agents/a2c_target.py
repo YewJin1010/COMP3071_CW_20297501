@@ -251,8 +251,9 @@ def train_a2c_target(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
-
+"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
 train_rewards, test_rewards, reward_threshold, episode, duration = train_a2c_target(train_env, test_env)
+"""
