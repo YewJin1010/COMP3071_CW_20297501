@@ -211,6 +211,9 @@ def train_a2c_su(train_env, test_env):
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
 
+        if episode % PRINT_EVERY == 0:
+            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
+
         if test_env.unwrapped.spec.id == 'CartPole-v0':
             if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
                 consecutive_episodes += 1

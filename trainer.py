@@ -42,7 +42,7 @@ def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, 
         if parameter:
             f.write(f"Parameter: {parameter}\n")
         f.write(f"Time Taken: {duration} seconds\n")
-        f.write(f"Solved in {episodes} Episodes\n")
+        f.write(f"Episodes: {episodes} episodes\n")
         f.write(f"Reward threshold: {reward_threshold}\n")
         f.write("Episode\tTrain Reward\tTest Reward\n")
         for i in range(len(train_rewards)):
