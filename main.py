@@ -185,7 +185,6 @@ if __name__ == "__main__":
     
     agent_name, agent_function = agents[agent_selection]
 
-    print("Number of experiments to run:")
     num_experiments = int(input("Enter the number of experiments to run: "))
 
     for i in range(num_experiments):
