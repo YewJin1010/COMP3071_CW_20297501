@@ -25,20 +25,23 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, expe
     plt.legend(loc='lower right')
     plt.grid()
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/plots/{experiment}"
+    save_path = f"results/{env}/{agent}/{experiment}/plots"
     os.makedirs(save_path, exist_ok=True)
     plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
-def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, now):  
+def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration):  
     """Write results to a file."""
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/logs/{experiment}"
+    save_path = f"results/{env}/{agent}/{experiment}/logs"
     os.makedirs(save_path, exist_ok=True)
     # write results to a file
     with open(f"{save_path}/{agent}_{env}_{now}.txt", "w") as f:
         f.write(f"Environment: {env}\n")
         f.write(f"Agent: {agent}\n")
         f.write(f"Experiment: {experiment}\n")
+        if parameter:
+            f.write(f"Parameter: {parameter}\n")
+        f.write(f"Time Taken: {duration} seconds\n")
         f.write(f"Solved in {episodes} Episodes\n")
         f.write(f"Reward threshold: {reward_threshold}\n")
         f.write("Episode\tTrain Reward\tTest Reward\n")
@@ -84,7 +87,7 @@ def create_env(env_name):
     if env_name == "CartPole-v0":
         experiment = "CartPole"
         parameter = "None"
-        return gym.make(env_name), gym.make(env_name)
+        return gym.make(env_name), gym.make(env_name), experiment, parameter
     
     elif env_name == "LunarLander-v2":
         experiment_selection = select_experiment()
@@ -178,7 +181,7 @@ if __name__ == "__main__":
     
     agent_name, agent_function = agents[agent_selection]
 
-    train_rewards, test_rewards, reward_threshold, episode = agent_function(train_env, test_env)
+    train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env)
     now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
     plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, now)
-    write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, now)
+    write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)

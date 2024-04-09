@@ -7,6 +7,7 @@ import torch.distributions as distributions
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
+import time
 
 # Multi-Layer Perceptron (MLP) network
 class MLP(nn.Module):
@@ -230,6 +231,8 @@ def train_ppo(train_env, test_env):
     train_rewards = []
     test_rewards = []
 
+    start_time = time.time()
+
     # Train the agent
     for episode in range(1, MAX_EPISODES+1):
         
@@ -250,14 +253,25 @@ def train_ppo(train_env, test_env):
             if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
                 consecutive_episodes += 1
                 if consecutive_episodes >= 100:
+
+                    end_time = time.time()
+                    duration = end_time - start_time
+
                     print(f'Reached reward threshold in {episode} episodes for CartPole')
-                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode
+                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode, duration
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
+
+                end_time = time.time()
+                duration = end_time - start_time
+
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode, duration
+
+    end_time = time.time()
+    duration = end_time - start_time
 
     print("Did not reach reward threshold")
-    return train_rewards, test_rewards, None, episode
+    return train_rewards, test_rewards, None, episode, duration

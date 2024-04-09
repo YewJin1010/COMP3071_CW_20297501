@@ -14,7 +14,7 @@ from agents.dqn import train_dqn
 from agents.a2c_dqn import train_a2c_dqn
 from agents.a2c_su import train_a2c_su
 
-def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, now):
+def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, now):
     """Plot training and testing rewards."""
     plt.figure(figsize=(12, 8))
     plt.plot(test_rewards, label='Test Reward')
@@ -25,19 +25,23 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, now)
     plt.legend(loc='lower right')
     plt.grid()
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/plots"
+    save_path = f"results/{env}/{agent}/{experiment}/plots"
     os.makedirs(save_path, exist_ok=True)
-    plt.savefig(f"results/{env}/{agent}/plots/{agent}_{env}_{now}.png")
+    plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
-def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, now):  
+def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration):  
     """Write results to a file."""
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/logs"
+    save_path = f"results/{env}/{agent}/{experiment}/logs"
     os.makedirs(save_path, exist_ok=True)
     # write results to a file
-    with open(f"results/{env}/{agent}/logs/{agent}_{env}_{now}.txt", "w") as f:
+    with open(f"{save_path}/{agent}_{env}_{now}.txt", "w") as f:
         f.write(f"Environment: {env}\n")
         f.write(f"Agent: {agent}\n")
+        f.write(f"Experiment: {experiment}\n")
+        if parameter:
+            f.write(f"Parameter: {parameter}\n")
+        f.write(f"Time Taken: {duration} seconds\n")
         f.write(f"Solved in {episodes} Episodes\n")
         f.write(f"Reward threshold: {reward_threshold}\n")
         f.write("Episode\tTrain Reward\tTest Reward\n")
@@ -77,58 +81,56 @@ def select_env():
         except ValueError:
             print("Invalid input. Please enter a number.")
 
-def create_env(env_name):
+def create_env(env_name, params=None):
     enable_wind = False
+    experiment = None
+    parameter = None
 
     if env_name == "CartPole-v0":
-        return gym.make(env_name), gym.make(env_name)
+        experiment = "CartPole"
+        parameter = "None"
+        return gym.make(env_name), gym.make(env_name), experiment, parameter
     
     elif env_name == "LunarLander-v2":
-        experiment_selection = select_experiment()
+        if params is None:
+            experiment_selection = select_experiment()
+        else:
+            # Automatically select experiment based on provided parameters
+            if "gravity" in params:
+                experiment_selection = 2
+            elif "wind_power" in params or "turbulence_power" in params:
+                experiment_selection = 3
+            else:
+                experiment_selection = 1
 
         if experiment_selection == 1:
+            experiment = "standard_experiment"
             train_env = gym.make(env_name)
             test_env = gym.make(env_name)
 
         elif experiment_selection == 2:
-            # Modify the gravity
-            while True:
-                gravity = float(input("Enter gravity (-10 to -1): "))
-                if -10 <= gravity <= -1:
-                    break
-                else:
-                    print("Gravity must be within the range -10 to -1. Please enter a valid value.")
-                
+            experiment = "gravity_experiment"
+            gravity = params.get("gravity")  
             train_env = gym.make(env_name, gravity=gravity)
             test_env = gym.make(env_name, gravity=gravity)
+            parameter = f"Gravity = {gravity}"
 
         elif experiment_selection == 3:
-            # Modify the wind and turbulence
-            while True:
-                wind_power = float(input("Enter wind power (0 to 20): "))
-                if 0 <= wind_power <= 20:
-                    break
-                else:
-                    print("Wind power must be within the range 0 to 20. Please enter a valid value.")
-            
-            while True:
-                turbulence_power = float(input("Enter turbulence power (0 to 2): "))
-                if 0 <= turbulence_power <= 2:
-                    break
-                else:
-                    print("Turbulence power must be within the range 0 to 2. Please enter a valid value.")
-            
+            experiment = "wind_and_turbulence_experiment"
+            wind_power = params.get("wind_power")
+            turbulence_power = params.get("turbulence_power")
             if wind_power > 0 or turbulence_power > 0:
                 enable_wind = True
+            train_env = gym.make(env_name, enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
+            test_env = gym.make(env_name, enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
+            parameter = f"Wind power = {wind_power}, Turbulence power = {turbulence_power}"
+        
+        if params is None:
+            seed = 1234
+            train_env.seed(seed)
+            test_env.seed(seed + 1)
 
-            train_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
-            test_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
-        
-        seed = 1234
-        train_env.seed(seed)
-        test_env.seed(seed + 1)
-        
-        return train_env, test_env
+        return train_env, test_env, experiment, parameter
 
 def select_agent():
     """Select the agent to train."""
@@ -150,7 +152,15 @@ def select_agent():
             print("Invalid input. Please enter a number.")
 
 env_name = select_env()
-train_env, test_env = create_env(env_name)
+
+# Define the parameter combinations for experiments
+experiment_parameters = [
+    {"gravity": -1},
+    {"gravity": -10},
+    {"wind_power": 1, "turbulence_power": 0.5},
+    {"wind_power": 20, "turbulence_power": 2}
+]
+
 
 # Number of experiments to run
 num_experiments = 5
@@ -167,9 +177,14 @@ agents = {
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
-    for i in range(num_experiments):
-        train_rewards, test_rewards, reward_threshold, episode = agent_function(train_env, test_env)
-        now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-        plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
-        write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, now)
-        print(f"Experiment {i+1}/{num_experiments} completed for {agent_name}")
+    for params in experiment_parameters:
+        # Modify the environment based on the current parameter combination
+        train_env, test_env, experiment, parameter = create_env(env_name, params)
+        
+        for i in range(num_experiments):
+            print(f"Running experiment {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
+            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env)
+            now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+            plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, now)
+            write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)
+            print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")

@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from collections import namedtuple, deque
 import gym
+import time
 
 # Hyperparameters (may need to be tuned for optimal performance)
 BUFFER_SIZE = int(1e5)  # Replay buffer size
@@ -157,6 +158,8 @@ def train_dqn(train_env, test_env):
     train_rewards = []
     test_rewards = []
 
+    start_time = time.time()
+
     for episode in range(1, MAX_EPISODES + 1):
         state = train_env.reset()
         episode_reward = 0
@@ -184,17 +187,28 @@ def train_dqn(train_env, test_env):
             if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
                 consecutive_episodes += 1
                 if consecutive_episodes >= 100:
+
+                    end_time = time.time()
+                    duration = end_time - start_time
+
                     print(f'Reached reward threshold in {episode} episodes for CartPole')
-                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode
+                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode, duration
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
             if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
+
+                end_time = time.time()
+                duration = end_time - start_time
+
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode, duration
+
+    end_time = time.time()
+    duration = end_time - start_time
 
     print("Did not reach reward threshold")
-    return train_rewards, test_rewards, None, episode
+    return train_rewards, test_rewards, None, episode, duration
 
 """
 train_env = gym.make("CartPole-v0")
