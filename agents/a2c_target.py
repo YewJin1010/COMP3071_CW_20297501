@@ -179,7 +179,7 @@ def evaluate(env, policy):
   return episode_reward
 
 
-def train_a2c_dqn(train_env, test_env):
+def train_a2c_target(train_env, test_env):
     """
     Trains the A2C agent with DQN-like target network in multiple environments.
     """
@@ -255,4 +255,4 @@ def train_a2c_dqn(train_env, test_env):
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, reward_threshold, episode, duration = train_a2c_dqn(train_env, test_env)
+train_rewards, test_rewards, reward_threshold, episode, duration = train_a2c_target(train_env, test_env)

@@ -11,7 +11,7 @@ import csv
 from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
-from agents.a2c_dqn import train_a2c_dqn
+from agents.a2c_target import train_a2c_target
 from agents.a2c_su import train_a2c_su
 
 def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now):
@@ -157,7 +157,7 @@ def select_agent():
     print("1. PPO")
     print("2. A2C")
     print("3. DQN")
-    print("4. A2C_DQN") 
+    print("4. A2C_Target") 
     print("5. A2C_SU")
     
     while True:
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         1: ("PPO", train_ppo),
         2: ("A2C", train_a2c),
         3: ("DQN", train_dqn),
-        4: ("A2C_DQN", train_a2c_dqn),
+        4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
     }
     
