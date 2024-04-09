@@ -28,24 +28,25 @@ class MLP(nn.Module):
     return x
 
 class ActorCritic(nn.Module):
-  def __init__(self, actor, critic, target_critic):
-    super().__init__()
-    self.actor = actor
-    self.critic = critic
-    self.target_critic = target_critic
+    def __init__(self, actor, critic, target_critic):
+        super().__init__()
+        self.actor = actor
+        self.critic = critic
+        self.target_critic = target_critic
 
-    # Update target network periodically through soft update
-    self.tau = 0.01  # Target network update parameter
+        # Update target network periodically through hard update
+        self.target_update_frequency = 1000  # Update target critic every 1000 steps
+        self.target_update_counter = 0
 
-  def forward(self, state):
-    action_pred = self.actor(state)
-    value_pred = self.critic(state)
-    return action_pred, value_pred
+    def forward(self, state):
+        action_pred = self.actor(state)
+        value_pred = self.critic(state)
+        return action_pred, value_pred
 
-  def update_target(self):
-    # Polyak averaging for soft update of target network
-    for target_param, local_param in zip(self.target_critic.parameters(), self.critic.parameters()):
-      target_param.data.copy_(self.tau * local_param.data + (1.0 - self.tau) * target_param.data)
+    def update_target(self):
+        if self.target_update_counter % self.target_update_frequency == 0:
+            self.target_critic.load_state_dict(self.critic.state_dict())
+        self.target_update_counter += 1
 
 def init_weights(m):
   if type(m) == nn.Linear:
@@ -53,65 +54,64 @@ def init_weights(m):
     m.bias.data.fill_(0)
 
 def train(env, policy, optimizer, discount_factor):
-  EPSILON = 1.0
+    EPSILON = 1.0
 
-  policy.train()
+    policy.train()
 
-  states = []
-  actions = []
-  log_prob_actions = []
-  rewards = []
-  values = []
-  done = False
-  episode_reward = 0
+    states = []
+    actions = []
+    log_prob_actions = []
+    rewards = []
+    values = []
+    done = False
+    episode_reward = 0
 
-  state = env.reset()
+    state = env.reset()
 
-  while not done:
-    if isinstance(state, tuple):
-      state, _ = state
+    while not done:
+        if isinstance(state, tuple):
+            state, _ = state
 
-    state = torch.FloatTensor(state).unsqueeze(0)
-    states.append(state)
-    action_pred, value_pred = policy(state)
+        state = torch.FloatTensor(state).unsqueeze(0)
+        states.append(state)
+        action_pred, value_pred = policy(state)
 
-    action_prob = F.softmax(action_pred, dim=-1)
+        action_prob = F.softmax(action_pred, dim=-1)
 
-    p = random.random()
-    if p <= EPSILON:
-        action = env.action_space.sample()
-    else:
-        action = torch.argmax(action_prob, dim=-1)
+        p = random.random()
+        if p <= EPSILON:
+            action = env.action_space.sample()
+        else:
+            action = torch.argmax(action_prob, dim=-1)
 
-    dist = distributions.Categorical(action_prob)
+        dist = distributions.Categorical(action_prob)
 
-    action = dist.sample()
-    log_prob_action = dist.log_prob(action)
+        action = dist.sample()
+        log_prob_action = dist.log_prob(action)
 
-    state, reward, done, _ = env.step(action.item())
+        state, reward, done, _ = env.step(action.item())
 
-    actions.append(action)
-    log_prob_actions.append(log_prob_action)
-    rewards.append(reward)
-    episode_reward += reward
+        actions.append(action)
+        log_prob_actions.append(log_prob_action)
+        rewards.append(reward)
+        episode_reward += reward
 
-  states = torch.cat(states)
-  actions = torch.cat(actions)
-  log_prob_actions = torch.cat(log_prob_actions)
+    states = torch.cat(states)
+    actions = torch.cat(actions)
+    log_prob_actions = torch.cat(log_prob_actions)
 
-  returns = calculate_returns(rewards, discount_factor)
-  # Detach gradients from advantages and returns for policy and value updates
-  advantages = calculate_advantages(returns, policy.critic(states).squeeze(-1))
+    returns = calculate_returns(rewards, discount_factor)
+    advantages = calculate_advantages(returns, policy.critic(states).squeeze(-1))
 
-  # Decay epsilon after each episode
-  EPSILON *= 0.999
-  
-  policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, policy.critic, optimizer, states, policy)
+    # Decay epsilon after each episode
+    EPSILON *= 0.999
 
-  # Update target network using soft update
-  policy.update_target()
-  
-  return policy_loss, value_loss, episode_reward
+    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, policy.critic, optimizer, states, policy)
+
+    # Update target network using hard update
+    policy.update_target()
+
+    return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):
     returns = []
@@ -251,9 +251,8 @@ def train_a2c_dqn(train_env, test_env):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
-"""
+
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, reward_threshold, episode = train_a2c_dqn(train_env, test_env)
-"""
+train_rewards, test_rewards, reward_threshold, episode, duration = train_a2c_dqn(train_env, test_env)
