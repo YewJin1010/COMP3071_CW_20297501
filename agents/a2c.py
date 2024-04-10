@@ -33,13 +33,11 @@ class ActorCritic(nn.Module):
         value = self.critic(state)
         return action_mean, value
 
+def add_noise_to_observation(observation, noise_stddev):
+    noise = torch.randn_like(observation) * noise_stddev
+    return observation + noise
 
-def init_weights(m):
-    if type(m) == nn.Linear:
-        torch.nn.init.xavier_normal_(m.weight)
-        m.bias.data.fill_(0)
-
-def train(env, policy, optimizer, discount_factor):
+def train(env, policy, optimizer, discount_factor, noise_stddev):
     policy.train()
     
     states = []
@@ -57,6 +55,9 @@ def train(env, policy, optimizer, discount_factor):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
+        if noise_stddev > 0.0:
+            state = add_noise_to_observation(state, noise_stddev)
+
         states.append(state)
         action_pred, value_pred = policy(state)
                 
@@ -158,12 +159,12 @@ def evaluate(env, policy):
         
     return episode_reward
 
-def train_a2c(train_env, test_env, max_episodes):
+def train_a2c(train_env, test_env, max_episodes, noise_stddev):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.005
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -178,14 +179,13 @@ def train_a2c(train_env, test_env, max_episodes):
     actor_critic = ActorCritic(state_dim, action_dim, hidden_dim)
     optimizer = optim.Adam(actor_critic.parameters(), lr=LEARNING_RATE)
 
-
     train_rewards = []
     test_rewards = []
 
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR)
+        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR, noise_stddev)
         test_reward = evaluate(test_env, actor_critic)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
@@ -223,7 +223,7 @@ def train_a2c(train_env, test_env, max_episodes):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
-"""
+
 def run_experiment(env_name, max_episodes, num_repetitions):
     train_rewards_all = []
     test_rewards_all = []
@@ -240,6 +240,9 @@ def run_experiment(env_name, max_episodes, num_repetitions):
 
     return train_rewards_all, test_rewards_all, durations_all
 
+"""
+# Input noise
+noise_stddev = input("Enter the standard deviation of the noise to add to the observation 0.0 to 0.1: ")
 # Run experiment for LunarLander
 env_name = 'LunarLander-v2'
 max_episodes = 2000

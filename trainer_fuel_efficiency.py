@@ -14,6 +14,31 @@ from agents.dqn import train_dqn
 from agents.a2c_target import train_a2c_target
 from agents.a2c_su import train_a2c_su
 
+class LimitedFuelLunarLander(gym.Wrapper):
+  def __init__(self, env):
+    super(LimitedFuelLunarLander, self).__init__(env)
+    self.fuel_limit = 100  # Adjust this value for desired fuel capacity
+    self.initial_fuel = self.fuel_limit
+    self.fuel_used = 0
+
+  def reset(self):
+    self.fuel_used = 0
+    return self.env.reset()
+
+  def step(self, action):
+    observation, reward, done, info = self.env.step(action)
+    # Penalize for using main engine or thrusters
+    if action[0] != 0 or action[1] != 0:
+      self.fuel_used += 0.1  # Adjust penalty value as needed
+      reward -= self.fuel_used
+
+    # Terminate episode if fuel depleted
+    if self.fuel_used >= self.fuel_limit:
+      done = True
+      reward = -10  # Penalty for running out of fuel (adjust value)
+
+    return observation, reward, done, info
+  
 def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now):
     """Plot training and testing rewards."""
     plt.figure(figsize=(12, 8))
@@ -85,56 +110,17 @@ def select_env():
         except ValueError:
             print("Invalid input. Please enter a number.")
 
-def create_env(env_name, params=None):
-    enable_wind = False
-    experiment = None
-    parameter = None
+def create_env(env, params):
 
-    if env_name == "CartPole-v0":
-        experiment = "CartPole"
-        parameter = "None"
-        return gym.make(env_name), gym.make(env_name), experiment, parameter
-    
-    elif env_name == "LunarLander-v2":
-        if params is None:
-            experiment_selection = select_experiment()
-        else:
-            # Automatically select experiment based on provided parameters
-            if "gravity" in params:
-                experiment_selection = 2
-            elif "wind_power" in params or "turbulence_power" in params:
-                experiment_selection = 3
-            else:
-                experiment_selection = 1
+    if env == "LunarLander-v2":
+        train_env = LimitedFuelLunarLander(gym.make('LunarLander-v2'))
+        test_env = LimitedFuelLunarLander(gym.make('LunarLander-v2'))
 
-        if experiment_selection == 1:
-            experiment = "standard_experiment"
-            train_env = gym.make(env_name)
-            test_env = gym.make(env_name)
-
-        elif experiment_selection == 2:
-            experiment = "gravity_experiment"
-            gravity = params.get("gravity")  
-            train_env = gym.make(env_name, gravity=gravity)
-            test_env = gym.make(env_name, gravity=gravity)
-            parameter = f"Gravity = {gravity}"
-
-        elif experiment_selection == 3:
-            experiment = "wind_and_turbulence_experiment"
-            wind_power = params.get("wind_power")
-            turbulence_power = params.get("turbulence_power")
-            if wind_power > 0 or turbulence_power > 0:
-                enable_wind = True
-            train_env = gym.make(env_name, enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
-            test_env = gym.make(env_name, enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
-            parameter = f"Wind power = {wind_power}, Turbulence power = {turbulence_power}"
-        
-        if params is None:
-            seed = 1234
-            train_env.seed(seed)
-            test_env.seed(seed + 1)
-
-        return train_env, test_env, experiment, parameter
+    seed = 1234
+    train_env.seed(seed)
+    test_env.seed(seed + 1)
+  
+    return train_env, test_env, "LunarLander", params
 
 def select_agent():
     """Select the agent to train."""
@@ -157,18 +143,7 @@ def select_agent():
 
 env_name = select_env()
 
-"""
-# Define the parameter combinations for experiments
-experiment_parameters = [
-    {"gravity": -1},  # Low gravity 
-    {"gravity": -10},  # High gravity 
-    {"wind_power": 1, "turbulence_power": 0.5},  # Low wind 
-    {"wind_power": 20, "turbulence_power": 2}  # High wind
-]
-"""
-
-experiment_parameters = {"noise_stddev": 0.1}
-noise_stddev = experiment_parameters.get("noise_stddev")
+experiment_parameters = [{"fuel_limit": 100}, {"fuel_limit": 200}, {"fuel_limit": 300}]
 
 max_episodes = int(input("Enter the maximum number of episodes to run: "))
 
@@ -182,6 +157,8 @@ agents = {
         4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
     }
+
+noise_stddev = 0.0
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")

@@ -53,7 +53,11 @@ def init_weights(m):
     torch.nn.init.xavier_normal_(m.weight)
     m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor):
+def add_noise_to_observation(observation, noise_stddev):
+    noise = torch.randn_like(observation) * noise_stddev
+    return observation + noise
+
+def train(env, policy, optimizer, discount_factor, noise_stddev):
     EPSILON = 1.0
 
     policy.train()
@@ -73,6 +77,9 @@ def train(env, policy, optimizer, discount_factor):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
+        if noise_stddev > 0.0:
+            state = add_noise_to_observation(state, noise_stddev)
+
         states.append(state)
         action_pred, value_pred = policy(state)
 
@@ -179,7 +186,7 @@ def evaluate(env, policy):
   return episode_reward
 
 
-def train_a2c_target(train_env, test_env, max_episodes):
+def train_a2c_target(train_env, test_env, max_episodes, noise_stddev):
     """
     Trains the A2C agent with DQN-like target network in multiple environments.
     """
@@ -213,7 +220,7 @@ def train_a2c_target(train_env, test_env, max_episodes):
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, noise_stddev)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)

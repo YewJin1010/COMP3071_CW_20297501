@@ -103,18 +103,6 @@ def create_env(env_name):
             test_env = gym.make(env_name)
 
         elif experiment_selection == 2:
-            experiment = "noise_experiment"
-            while True:
-                noise_stddev = float(input("Enter Noise Standard Deviation (0.0 to 0.1): "))
-                if 0.0 <= noise_stddev <= 0.1:
-                    break
-                else:
-                    print("Noise Standard Deviation must be within the range 0.0 to 0.1. Please enter a valid value.")
-
-            train_env = gym.make(env_name)
-            test_env = gym.make(env_name)
-
-        elif experiment_selection == 4:
             experiment = "gravity_experiment"
             # Modify the gravity
             while True:
@@ -127,7 +115,7 @@ def create_env(env_name):
             train_env = gym.make(env_name, gravity=gravity)
             test_env = gym.make(env_name, gravity=gravity)
 
-        elif experiment_selection == 5:
+        elif experiment_selection == 3:
             experiment = "wind_and_turbulence_experiment"
             # Modify the wind and turbulence
             while True:
@@ -151,9 +139,7 @@ def create_env(env_name):
             test_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
         
         # Get parameter value based on the experiment
-        if experiment == "noise_experiment":
-            parameter = f"Noise Standard Deviation = {noise_stddev}"
-        elif experiment == "gravity_experiment":
+        if experiment == "gravity_experiment":
             parameter = f"Gravity = {gravity}"
         elif experiment == "wind_and_turbulence_experiment":
             parameter = f"Wind power = {wind_power}, Turbulence power = {turbulence_power}"
@@ -199,10 +185,10 @@ if __name__ == "__main__":
     }
     
     agent_name, agent_function = agents[agent_selection]
+    
+    max_episodes = int(input("Enter the maximum number of episodes to run: "))
 
     num_experiments = int(input("Enter the number of experiments to run: "))
-    
-    max_episodes = int(input("Enter the maximum number of episodes per experiment: "))
 
     for i in range(num_experiments):
         print(f"Experiment {i+1}")

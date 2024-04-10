@@ -31,7 +31,7 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, expe
     os.makedirs(save_path, exist_ok=True)
     plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
-def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration, max_episodes):  
+def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration):  
     """Write results to a file."""
     if parameter == "None":
         parameter = "standard"
@@ -47,7 +47,6 @@ def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, 
             f.write(f"Parameter: {parameter}\n")
         f.write(f"Time Taken: {duration} seconds\n")
         f.write(f"Episodes: {episodes} episodes\n")
-        f.write(f"Max Episodes: {max_episodes} episodes\n")
         f.write(f"Reward threshold: {reward_threshold}\n")
         f.write("Episode\tTrain Reward\tTest Reward\n")
         for i in range(len(train_rewards)):
@@ -86,8 +85,10 @@ def select_env():
         except ValueError:
             print("Invalid input. Please enter a number.")
 
-def create_env(env_name):
+def create_env(env_name, params=None):
     enable_wind = False
+    experiment = None
+    parameter = None
 
     if env_name == "CartPole-v0":
         experiment = "CartPole"
@@ -95,7 +96,16 @@ def create_env(env_name):
         return gym.make(env_name), gym.make(env_name), experiment, parameter
     
     elif env_name == "LunarLander-v2":
-        experiment_selection = select_experiment()
+        if params is None:
+            experiment_selection = select_experiment()
+        else:
+            # Automatically select experiment based on provided parameters
+            if "gravity" in params:
+                experiment_selection = 2
+            elif "wind_power" in params or "turbulence_power" in params:
+                experiment_selection = 3
+            else:
+                experiment_selection = 1
 
         if experiment_selection == 1:
             experiment = "standard_experiment"
@@ -103,67 +113,27 @@ def create_env(env_name):
             test_env = gym.make(env_name)
 
         elif experiment_selection == 2:
-            experiment = "noise_experiment"
-            while True:
-                noise_stddev = float(input("Enter Noise Standard Deviation (0.0 to 0.1): "))
-                if 0.0 <= noise_stddev <= 0.1:
-                    break
-                else:
-                    print("Noise Standard Deviation must be within the range 0.0 to 0.1. Please enter a valid value.")
-
-            train_env = gym.make(env_name)
-            test_env = gym.make(env_name)
-
-        elif experiment_selection == 4:
             experiment = "gravity_experiment"
-            # Modify the gravity
-            while True:
-                gravity = float(input("Enter gravity (-10 to -1): "))
-                if -10 <= gravity <= -1:
-                    break
-                else:
-                    print("Gravity must be within the range -10 to -1. Please enter a valid value.")
-                
+            gravity = params.get("gravity")  
             train_env = gym.make(env_name, gravity=gravity)
             test_env = gym.make(env_name, gravity=gravity)
+            parameter = f"Gravity = {gravity}"
 
-        elif experiment_selection == 5:
+        elif experiment_selection == 3:
             experiment = "wind_and_turbulence_experiment"
-            # Modify the wind and turbulence
-            while True:
-                wind_power = float(input("Enter wind power (0 to 20): "))
-                if 0 <= wind_power <= 20:
-                    break
-                else:
-                    print("Wind power must be within the range 0 to 20. Please enter a valid value.")
-            
-            while True:
-                turbulence_power = float(input("Enter turbulence power (0 to 2): "))
-                if 0 <= turbulence_power <= 2:
-                    break
-                else:
-                    print("Turbulence power must be within the range 0 to 2. Please enter a valid value.")
-            
+            wind_power = params.get("wind_power")
+            turbulence_power = params.get("turbulence_power")
             if wind_power > 0 or turbulence_power > 0:
                 enable_wind = True
-
-            train_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
-            test_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
-        
-        # Get parameter value based on the experiment
-        if experiment == "noise_experiment":
-            parameter = f"Noise Standard Deviation = {noise_stddev}"
-        elif experiment == "gravity_experiment":
-            parameter = f"Gravity = {gravity}"
-        elif experiment == "wind_and_turbulence_experiment":
+            train_env = gym.make(env_name, enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
+            test_env = gym.make(env_name, enable_wind=enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
             parameter = f"Wind power = {wind_power}, Turbulence power = {turbulence_power}"
-        else:
-            parameter = "None"
-            
-        seed = 1234
-        train_env.seed(seed)
-        test_env.seed(seed + 1)
         
+        if params is None:
+            seed = 1234
+            train_env.seed(seed)
+            test_env.seed(seed + 1)
+
         return train_env, test_env, experiment, parameter
 
 def select_agent():
@@ -185,28 +155,39 @@ def select_agent():
         except ValueError:
             print("Invalid input. Please enter a number.")
 
-if __name__ == "__main__":
-    env_name = select_env()
-    train_env, test_env, experiment, parameter = create_env(env_name)
+env_name = select_env()
 
-    agent_selection = select_agent()
-    agents = {
+# Define the parameter combinations for experiments
+experiment_parameters = [
+    {"gravity": -1},  # Low gravity 
+    {"gravity": -10},  # High gravity 
+    {"wind_power": 1, "turbulence_power": 0.5},  # Low wind 
+    {"wind_power": 20, "turbulence_power": 2}  # High wind
+]
+
+max_episodes = int(input("Enter the maximum number of episodes to run: "))
+
+# Number of experiments to run
+num_experiments = 5
+ 
+agents = {
         1: ("PPO", train_ppo),
         2: ("A2C", train_a2c),
         3: ("DQN", train_dqn),
         4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
     }
-    
-    agent_name, agent_function = agents[agent_selection]
 
-    num_experiments = int(input("Enter the number of experiments to run: "))
-    
-    max_episodes = int(input("Enter the maximum number of episodes per experiment: "))
-
-    for i in range(num_experiments):
-        print(f"Experiment {i+1}")
-        train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
-        now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-        plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
-        write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)
+for agent_id, (agent_name, agent_function) in agents.items():
+    print(f"Running experiments for {agent_name}")
+    for params in experiment_parameters:
+        # Modify the environment based on the current parameter combination
+        train_env, test_env, experiment, parameter = create_env(env_name, params)
+        
+        for i in range(num_experiments):
+            print(f"Running experiment {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
+            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
+            now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+            plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
+            write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)
+            print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")
