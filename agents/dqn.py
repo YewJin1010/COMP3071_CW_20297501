@@ -142,9 +142,9 @@ def evaluate(env, agent):
         state = next_state
     return total_reward
 
-def train_dqn(train_env, test_env):
+def train_dqn(train_env, test_env, max_episodes):
     """Train DQN agent on the Lunar Lander environment."""
-    MAX_EPISODES = 2000  # Maximum number of training episodes
+    MAX_EPISODES = max_episodes  # Maximum number of training episodes
     N_TRIALS = 100        # Number of episodes to consider for mean reward
     PRINT_EVERY = 10      # Print frequency
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold

@@ -172,8 +172,8 @@ def evaluate(env, policy):
         episode_reward += reward
         
     return episode_reward
-def train_a2c_su(train_env, test_env):
-    MAX_EPISODES = 2000
+def train_a2c_su(train_env, test_env, max_episodes):
+    MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
     PRINT_EVERY = 10

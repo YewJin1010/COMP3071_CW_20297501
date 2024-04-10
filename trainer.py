@@ -165,6 +165,9 @@ experiment_parameters = [
     {"wind_power": 20, "turbulence_power": 2}  # High wind
 ]
 
+print("Maximum number of episodes to run:")
+max_episodes = int(input("Enter the number of episodes: "))
+
 # Number of experiments to run
 num_experiments = 5
  
@@ -184,7 +187,7 @@ for agent_id, (agent_name, agent_function) in agents.items():
         
         for i in range(num_experiments):
             print(f"Running experiment {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
-            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env)
+            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
             write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)

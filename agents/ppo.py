@@ -201,8 +201,8 @@ def evaluate(env, policy):
         episode_reward += reward
     return episode_reward
 
-def train_ppo(train_env, test_env):
-    MAX_EPISODES = 2000 # Maximum number of episodes to run
+def train_ppo(train_env, test_env, max_episodes):
+    MAX_EPISODES = max_episodes # Maximum number of episodes to run
     DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
     N_TRIALS = 100 # Number of trials to average rewards over
     PRINT_EVERY = 10 # How often to print the progress

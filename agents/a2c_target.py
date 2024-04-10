@@ -179,11 +179,11 @@ def evaluate(env, policy):
   return episode_reward
 
 
-def train_a2c_target(train_env, test_env):
+def train_a2c_target(train_env, test_env, max_episodes):
     """
     Trains the A2C agent with DQN-like target network in multiple environments.
     """
-    MAX_EPISODES = 2000
+    MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
     PRINT_EVERY = 10
