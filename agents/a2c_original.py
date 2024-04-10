@@ -8,31 +8,36 @@ import numpy as np
 import gym
 import time
 
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
+        super().__init__()
+        
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.PReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Dropout(dropout),
+            nn.PReLU(),
+            nn.Linear(hidden_dim, output_dim)
+        )
+        
+    def forward(self, x):
+        x = self.net(x)
+        return x
+    
 class ActorCritic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=128):
-        super(ActorCritic, self).__init__()
+    def __init__(self, actor, critic):
+        super().__init__()
+        self.actor = actor
+        self.critic = critic
         
-        self.actor = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, action_dim)
-        )
-        
-        self.critic = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1)
-        )
-
     def forward(self, state):
-        action_mean = self.actor(state)
-        value = self.critic(state)
-        return action_mean, value
-
+        
+        action_pred = self.actor(state)
+        value_pred = self.critic(state)
+        
+        return action_pred, value_pred
 
 def init_weights(m):
     if type(m) == nn.Linear:
@@ -40,6 +45,7 @@ def init_weights(m):
         m.bias.data.fill_(0)
 
 def train(env, policy, optimizer, discount_factor):
+    
     policy.train()
     
     states = []
@@ -60,7 +66,7 @@ def train(env, policy, optimizer, discount_factor):
         states.append(state)
         action_pred, value_pred = policy(state)
                 
-        action_prob = F.softmax(action_pred, dim=-1)
+        action_prob = F.softmax(action_pred, dim = -1)
                 
         dist = distributions.Categorical(action_prob)
 
@@ -157,7 +163,6 @@ def evaluate(env, policy):
         episode_reward += reward
         
     return episode_reward
-
 def train_a2c(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
@@ -168,16 +173,17 @@ def train_a2c(train_env, test_env, max_episodes):
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
-    state_dim = train_env.observation_space.shape[0]
-    hidden_dim = 128
-    if isinstance(train_env.action_space, gym.spaces.Discrete):
-        action_dim = train_env.action_space.n
-    else:
-        action_dim = train_env.action_space.shape[0] 
+    INPUT_DIM = train_env.observation_space.shape[0]
+    HIDDEN_DIM = 128
+    OUTPUT_DIM = train_env.action_space.n
 
-    actor_critic = ActorCritic(state_dim, action_dim, hidden_dim)
-    optimizer = optim.Adam(actor_critic.parameters(), lr=LEARNING_RATE)
+    actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
+    critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
 
+    policy = ActorCritic(actor, critic)
+    policy.apply(init_weights)
+
+    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
 
     train_rewards = []
     test_rewards = []
@@ -185,8 +191,8 @@ def train_a2c(train_env, test_env, max_episodes):
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
-        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR)
-        test_reward = evaluate(test_env, actor_critic)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
+        test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
 
@@ -223,30 +229,9 @@ def train_a2c(train_env, test_env, max_episodes):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
-def run_experiment(env_name, max_episodes, num_repetitions):
-    train_rewards_all = []
-    test_rewards_all = []
-    durations_all = []
+"""
+train_env = gym.make('LunarLander-v2')
+test_env = gym.make('LunarLander-v2')
 
-    for _ in range(num_repetitions):
-        print(f"Running experiment for {env_name}")
-        train_env = gym.make(env_name)
-        test_env = gym.make(env_name)
-        train_rewards, test_rewards, _, _, duration = train_a2c(train_env, test_env, max_episodes)
-        train_rewards_all.append(train_rewards)
-        test_rewards_all.append(test_rewards)
-        durations_all.append(duration)
-
-    return train_rewards_all, test_rewards_all, durations_all
-
-# Run experiment for LunarLander
-env_name = 'LunarLander-v2'
-max_episodes = 2000
-num_repetitions = 2
-train_rewards_all, test_rewards_all, durations_all = run_experiment(env_name, max_episodes, num_repetitions)
-
-# Run experiment for CartPole
-env_name = 'CartPole-v0'
-max_episodes = 2000
-num_repetitions = 2
-train_rewards_all, test_rewards_all, durations_all = run_experiment(env_name, max_episodes, num_repetitions)
+train_rewards, test_rewards, _, _ = train_a2c(train_env, test_env)
+"""
