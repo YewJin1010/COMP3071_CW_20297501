@@ -165,8 +165,7 @@ experiment_parameters = [
     {"wind_power": 20, "turbulence_power": 2}  # High wind
 ]
 
-print("Maximum number of episodes to run:")
-max_episodes = int(input("Enter the number of episodes: "))
+max_episodes = int(input("Enter the maximum number of episodes to run: "))
 
 # Number of experiments to run
 num_experiments = 5
