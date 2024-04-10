@@ -9,58 +9,28 @@ import numpy as np
 import gym
 import time
 
-# Multi-Layer Perceptron (MLP) network
-class MLP(nn.Module):
-
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
-        """
-        :param input_dim: int: Dimension of the input
-        :param hidden_dim: int: Dimension of the hidden layer
-        :param output_dim: int: Dimension of the output
-        :param dropout: float: Dropout rate
-        """ 
-        super().__init__()
-        
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
-            nn.Linear(hidden_dim, output_dim)
-        )
-    
-    # Forward pass through the network
-    def forward(self, x):
-        x = self.net(x)
-        return x
-
-# Actor-Critic network
 class ActorCritic(nn.Module):
-    def __init__(self, actor, critic):
-        """
-        :param actor: nn.Module: Actor network
-        :param critic: nn.Module: Critic network
-        """ 
-        super().__init__()
-        
-        # Actor and Critic networks
-        self.actor = actor
-        self.critic = critic
-        
-    def forward(self, state):
-        # Forward pass through the actor and critic networks
-        action_pred = self.actor(state)
-        value_pred = self.critic(state)
-        
-        return action_pred, value_pred
+    def __init__(self, state_dim, action_dim, hidden_dim=128):
+        super(ActorCritic, self).__init__()
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
 
-# Initialize the weights of the network
-def init_weights(m):
-    if type(m) == nn.Linear:
-        torch.nn.init.xavier_normal_(m.weight)
-        m.bias.data.fill_(0)
+    def forward(self, state):
+        action_mean = self.actor(state)
+        value = self.critic(state)
+        return action_mean, value
 
 # Train the agent using Proximal Policy Optimization (PPO)
 def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
@@ -109,6 +79,7 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
 
     policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip)
     
+    
     # L2 Regularization
     l2_reg = 0.0
     l2_lambda = 0.1
@@ -117,8 +88,9 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
     policy_loss += l2_lambda * l2_reg
     
     return policy_loss, value_loss, episode_reward
+    
 
-def calculate_returns(rewards, discount_factor, normalize = True):
+def calculate_returns(rewards, discount_factor, normalize=True):
     returns = []
     R = 0
     for r in reversed(rewards):
@@ -126,7 +98,7 @@ def calculate_returns(rewards, discount_factor, normalize = True):
         returns.insert(0, R)
     returns = torch.tensor(returns)
     if normalize:
-        returns = (returns - returns.mean()) / returns.std()
+        returns = (returns - returns.mean()) / (returns.std())
     return returns
 
 def calculate_advantages(returns, values, normalize = True):
@@ -213,20 +185,15 @@ def train_ppo(train_env, test_env, max_episodes):
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
-    # Initialize the environment
-    INPUT_DIM = train_env.observation_space.shape[0]
-    HIDDEN_DIM = 128
-    OUTPUT_DIM = train_env.action_space.n
+    state_dim = train_env.observation_space.shape[0]
+    hidden_dim = 128
+    if isinstance(train_env.action_space, gym.spaces.Discrete):
+        action_dim = train_env.action_space.n
+    else:
+        action_dim = train_env.action_space.shape[0] 
 
-    # Initialize the agent
-    actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
-    critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
-
-    policy = ActorCritic(actor, critic)
-    policy.apply(init_weights)
-
-    # Initialize the optimizer
-    optimizer = optim.Adam(policy.parameters(), lr = LEARNING_RATE)
+    actor_critic = ActorCritic(state_dim, action_dim, hidden_dim)
+    optimizer = optim.Adam(actor_critic.parameters(), lr=LEARNING_RATE)
 
     train_rewards = []
     test_rewards = []
@@ -236,9 +203,9 @@ def train_ppo(train_env, test_env, max_episodes):
     # Train the agent
     for episode in range(1, MAX_EPISODES+1):
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
+        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
         
-        test_reward = evaluate(test_env, policy)
+        test_reward = evaluate(test_env, actor_critic)
         
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
