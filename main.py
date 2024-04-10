@@ -31,7 +31,7 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, expe
     os.makedirs(save_path, exist_ok=True)
     plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
-def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration):  
+def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration, max_episodes):  
     """Write results to a file."""
     if parameter == "None":
         parameter = "standard"
@@ -47,6 +47,7 @@ def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, 
             f.write(f"Parameter: {parameter}\n")
         f.write(f"Time Taken: {duration} seconds\n")
         f.write(f"Episodes: {episodes} episodes\n")
+        f.write(f"Max Episodes: {max_episodes} episodes\n")
         f.write(f"Reward threshold: {reward_threshold}\n")
         f.write("Episode\tTrain Reward\tTest Reward\n")
         for i in range(len(train_rewards)):
@@ -194,4 +195,4 @@ if __name__ == "__main__":
         train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
         now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
         plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
-        write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)
+        write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)
