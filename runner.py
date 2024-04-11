@@ -158,11 +158,7 @@ env_name = select_env()
 
 # Define the parameter combinations for experiments
 experiment_parameters = [
-    {"standard": None},  # Standard Lunar Lander environment
-    {"gravity": -1},  # Low gravity 
-    {"gravity": -10},  # High gravity 
-    {"wind_power": 1, "turbulence_power": 0.5},  # Low wind 
-    {"wind_power": 20, "turbulence_power": 2}  # High wind
+    {"random gravity": None},  # Standard Lunar Lander environment
 ]
 
 max_episodes = int(input("Enter the maximum number of episodes to run (2000+ recommended): "))
