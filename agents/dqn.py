@@ -142,11 +142,7 @@ def evaluate(env, agent):
         state = next_state
     return total_reward
 
-def add_noise_to_observation(observation, noise_stddev):
-    noise = torch.randn_like(observation) * noise_stddev
-    return observation + noise
-
-def train_dqn(train_env, test_env, max_episodes, noise_stddev):
+def train_dqn(train_env, test_env, max_episodes):
     """Train DQN agent on the Lunar Lander environment."""
     MAX_EPISODES = max_episodes  # Maximum number of training episodes
     N_TRIALS = 100        # Number of episodes to consider for mean reward
@@ -168,9 +164,6 @@ def train_dqn(train_env, test_env, max_episodes, noise_stddev):
         state = train_env.reset()
         episode_reward = 0
         for t in range(train_env._max_episode_steps):
-            if noise_stddev > 0.0:
-                state = add_noise_to_observation(state, noise_stddev)
-
             action = agent.act(state)
             next_state, reward, done, _ = train_env.step(action)
             agent.step(state, action, reward, next_state, done)

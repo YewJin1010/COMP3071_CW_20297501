@@ -62,12 +62,8 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def add_noise_to_observation(observation, noise_stddev):
-    noise = torch.randn_like(observation) * noise_stddev
-    return observation + noise
-
 # Train the agent using Proximal Policy Optimization (PPO)
-def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip, noise_stddev):
+def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         
     policy.train()
         
@@ -86,8 +82,6 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip, noise_st
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
-        if noise_stddev > 0.0:
-            state = add_noise_to_observation(state, noise_stddev)
 
         states.append(state)        
         action_pred, value_pred = policy(state)
@@ -207,7 +201,7 @@ def evaluate(env, policy):
         episode_reward += reward
     return episode_reward
 
-def train_ppo(train_env, test_env, max_episodes, noise_stddev):
+def train_ppo(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes # Maximum number of episodes to run
     DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
     N_TRIALS = 100 # Number of trials to average rewards over
@@ -242,7 +236,7 @@ def train_ppo(train_env, test_env, max_episodes, noise_stddev):
     # Train the agent
     for episode in range(1, MAX_EPISODES+1):
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP, noise_stddev)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
         
         test_reward = evaluate(test_env, policy)
         
@@ -298,7 +292,6 @@ def run_experiment(env_name, max_episodes, num_repetitions):
 
     return train_rewards_all, test_rewards_all, durations_all
 
-"""
 # Run experiment for LunarLander
 env_name = 'LunarLander-v2'
 max_episodes = 2000
@@ -310,4 +303,3 @@ env_name = 'CartPole-v0'
 max_episodes = 2000
 num_repetitions = 2
 train_rewards_all, test_rewards_all, durations_all = run_experiment(env_name, max_episodes, num_repetitions)
-"""

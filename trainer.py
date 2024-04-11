@@ -157,7 +157,6 @@ def select_agent():
 
 env_name = select_env()
 
-"""
 # Define the parameter combinations for experiments
 experiment_parameters = [
     {"gravity": -1},  # Low gravity 
@@ -165,10 +164,6 @@ experiment_parameters = [
     {"wind_power": 1, "turbulence_power": 0.5},  # Low wind 
     {"wind_power": 20, "turbulence_power": 2}  # High wind
 ]
-"""
-
-experiment_parameters = {"noise_stddev": 0.1}
-noise_stddev = experiment_parameters.get("noise_stddev")
 
 max_episodes = int(input("Enter the maximum number of episodes to run: "))
 
@@ -191,7 +186,7 @@ for agent_id, (agent_name, agent_function) in agents.items():
         
         for i in range(num_experiments):
             print(f"Running experiment {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
-            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, noise_stddev)
+            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
             write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration)
