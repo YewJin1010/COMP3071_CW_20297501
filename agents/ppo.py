@@ -292,6 +292,7 @@ def run_experiment(env_name, max_episodes, num_repetitions):
 
     return train_rewards_all, test_rewards_all, durations_all
 
+"""
 # Run experiment for LunarLander
 env_name = 'LunarLander-v2'
 max_episodes = 2000
@@ -303,3 +304,4 @@ env_name = 'CartPole-v0'
 max_episodes = 2000
 num_repetitions = 2
 train_rewards_all, test_rewards_all, durations_all = run_experiment(env_name, max_episodes, num_repetitions)
+"""

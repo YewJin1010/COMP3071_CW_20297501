@@ -91,7 +91,7 @@ def create_env(env_name, params=None):
     parameter = None
 
     if env_name == "CartPole-v0":
-        experiment = "CartPole experiment"
+        experiment = "standard CartPole experiment"
         parameter = "standard"
         return gym.make(env_name), gym.make(env_name), experiment, parameter
     
@@ -106,7 +106,7 @@ def create_env(env_name, params=None):
             experiment_selection = 1
 
         if experiment_selection == 1:
-            experiment = "standard experiment"
+            experiment = "standard LunarLander experiment"
             parameter = "standard"
             train_env = gym.make(env_name)
             test_env = gym.make(env_name)
@@ -173,8 +173,8 @@ if max_episodes < 2000:
 num_experiments = int(input("Enter the number of experiments to run: "))
  
 agents = {
-        1: ("PPO", train_ppo),
-        2: ("A2C", train_a2c),
+        #1: ("PPO", train_ppo),
+        #2: ("A2C", train_a2c),
         3: ("DQN", train_dqn),
         4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
