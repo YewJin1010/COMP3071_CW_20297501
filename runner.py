@@ -106,8 +106,8 @@ def create_env(env_name, params=None):
             experiment_selection = 1
 
         if experiment_selection == 1:
-            experiment = "standard LunarLander experiment"
-            parameter = "standard"
+            experiment = "Random Gravity LunarLander experiment"
+            parameter = "random gravity"
             train_env = gym.make(env_name)
             test_env = gym.make(env_name)
 
@@ -158,7 +158,7 @@ env_name = select_env()
 
 # Define the parameter combinations for experiments
 experiment_parameters = [
-    {"random gravity": None},  # Standard Lunar Lander environment
+    {"standard": None},  # Standard Lunar Lander environment
 ]
 
 max_episodes = int(input("Enter the maximum number of episodes to run (2000+ recommended): "))
