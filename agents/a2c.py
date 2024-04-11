@@ -193,14 +193,10 @@ def train_a2c(train_env, test_env, max_episodes):
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
 
-        # Latest rewards
-        latest_train_reward = train_rewards[-1]
-        latest_test_reward = test_rewards[-1]
+        if episode % PRINT_EVERY == 0:
+            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
         if test_env.unwrapped.spec.id == 'CartPole-v0':
-            if episode % PRINT_EVERY == 0:
-                print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
-
             if mean_test_rewards >= REWARD_THRESHOLD_CARTPOLE:
                 consecutive_episodes += 1
                 if consecutive_episodes >= 100:
@@ -213,10 +209,8 @@ def train_a2c(train_env, test_env, max_episodes):
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
-            if episode % PRINT_EVERY == 0:
-                print(f'| Episode: {episode:3} | Latest Train Reward: {latest_train_reward:7.1f} | Latest Test Reward: {latest_test_reward:7.1f} |')
-            if latest_test_reward >= REWARD_THRESHOLD_LUNAR_LANDER:
-                
+            if mean_test_rewards >= REWARD_THRESHOLD_LUNAR_LANDER:
+
                 end_time = time.time()
                 duration = end_time - start_time
 

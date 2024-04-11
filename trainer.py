@@ -91,35 +91,36 @@ def create_env(env_name, params=None):
     parameter = None
 
     if env_name == "CartPole-v0":
-        experiment = "CartPole experiment"
-        parameter = "standard"
+        experiment = "CartPole"
+        parameter = "None"
         return gym.make(env_name), gym.make(env_name), experiment, parameter
     
     elif env_name == "LunarLander-v2":
-      
-        # Automatically select experiment based on provided parameters
-        if "gravity" in params:
-            experiment_selection = 2
-        elif "wind_power" in params or "turbulence_power" in params:
-            experiment_selection = 3
+        if params is None:
+            experiment_selection = select_experiment()
         else:
-            experiment_selection = 1
+            # Automatically select experiment based on provided parameters
+            if "gravity" in params:
+                experiment_selection = 2
+            elif "wind_power" in params or "turbulence_power" in params:
+                experiment_selection = 3
+            else:
+                experiment_selection = 1
 
         if experiment_selection == 1:
-            experiment = "standard experiment"
-            parameter = "standard"
+            experiment = "standard_experiment"
             train_env = gym.make(env_name)
             test_env = gym.make(env_name)
 
         elif experiment_selection == 2:
-            experiment = "gravity experiment"
+            experiment = "gravity_experiment"
             gravity = params.get("gravity")  
             train_env = gym.make(env_name, gravity=gravity)
             test_env = gym.make(env_name, gravity=gravity)
             parameter = f"Gravity = {gravity}"
 
         elif experiment_selection == 3:
-            experiment = "wind_and_turbulence experiment"
+            experiment = "wind_and_turbulence_experiment"
             wind_power = params.get("wind_power")
             turbulence_power = params.get("turbulence_power")
             if wind_power > 0 or turbulence_power > 0:
@@ -158,19 +159,16 @@ env_name = select_env()
 
 # Define the parameter combinations for experiments
 experiment_parameters = [
-    {"standard": None},  # Standard Lunar Lander environment
     {"gravity": -1},  # Low gravity 
     {"gravity": -10},  # High gravity 
     {"wind_power": 1, "turbulence_power": 0.5},  # Low wind 
     {"wind_power": 20, "turbulence_power": 2}  # High wind
 ]
 
-max_episodes = int(input("Enter the maximum number of episodes to run (2000+ recommended): "))
-if max_episodes < 2000:
-    print("Warning: Training for less than 2000 episodes may not result in optimal performance.")
+max_episodes = int(input("Enter the maximum number of episodes to run: "))
 
 # Number of experiments to run
-num_experiments = int(input("Enter the number of experiments to run: "))
+num_experiments = 5
  
 agents = {
         1: ("PPO", train_ppo),
@@ -187,7 +185,7 @@ for agent_id, (agent_name, agent_function) in agents.items():
         train_env, test_env, experiment, parameter = create_env(env_name, params)
         
         for i in range(num_experiments):
-            print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
+            print(f"Running experiment {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
             train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
