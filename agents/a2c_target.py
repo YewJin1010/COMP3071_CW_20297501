@@ -178,6 +178,13 @@ def evaluate(env, policy):
 
   return episode_reward
 
+def randomise_gravity(train_env, test_env):
+    min_gravity = -10
+    max_gravity = -1
+
+    new_gravity = np.random.uniform(low=min_gravity, high=max_gravity)
+    train_env.env.gravity = new_gravity
+    test_env.env.gravity = new_gravity
 
 def train_a2c_target(train_env, test_env, max_episodes):
     """
@@ -213,6 +220,8 @@ def train_a2c_target(train_env, test_env, max_episodes):
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
+        randomise_gravity(train_env, test_env)
+        
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)

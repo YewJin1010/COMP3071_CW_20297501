@@ -182,6 +182,7 @@ if __name__ == "__main__":
         3: ("DQN", train_dqn),
         4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
+
     }
     
     agent_name, agent_function = agents[agent_selection]

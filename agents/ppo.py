@@ -201,6 +201,14 @@ def evaluate(env, policy):
         episode_reward += reward
     return episode_reward
 
+def randomise_gravity(train_env, test_env):
+    min_gravity = -10
+    max_gravity = -1
+
+    new_gravity = np.random.uniform(low=min_gravity, high=max_gravity)
+    train_env.env.gravity = new_gravity
+    test_env.env.gravity = new_gravity
+
 def train_ppo(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes # Maximum number of episodes to run
     DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
@@ -235,6 +243,8 @@ def train_ppo(train_env, test_env, max_episodes):
 
     # Train the agent
     for episode in range(1, MAX_EPISODES+1):
+
+        randomise_gravity(train_env, test_env)
         
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
         

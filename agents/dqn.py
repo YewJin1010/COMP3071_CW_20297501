@@ -151,6 +151,14 @@ def evaluate(env, agent):
         state = next_state
     return total_reward
 
+def randomise_gravity(train_env, test_env):
+    min_gravity = -10
+    max_gravity = -1
+
+    new_gravity = np.random.uniform(low=min_gravity, high=max_gravity)
+    train_env.env.gravity = new_gravity
+    test_env.env.gravity = new_gravity
+
 def train_dqn(train_env, test_env, max_episodes):
     """Deep Q-Learning algorithm."""
     N_TRIALS = 100              # Number of consecutive trials needed to solve environment
@@ -168,6 +176,8 @@ def train_dqn(train_env, test_env, max_episodes):
 
     eps = EPS_START  # Initialize epsilon
     for episode in range(1, max_episodes + 1):
+        randomise_gravity(train_env, test_env)
+
         state = train_env.reset()
         episode_reward = 0
         while True:
@@ -217,8 +227,10 @@ def train_dqn(train_env, test_env, max_episodes):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
+"""
 train_env = gym.make("LunarLander-v2")
 test_env = gym.make("LunarLander-v2")
 
 NUM_EPISODES = 2000
 train_dqn(train_env, test_env, NUM_EPISODES)
+"""
