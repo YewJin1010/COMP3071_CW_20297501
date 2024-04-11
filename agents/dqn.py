@@ -145,7 +145,7 @@ def evaluate(env, agent):
 def train_dqn(train_env, test_env, max_episodes):
     """Train DQN agent on the Lunar Lander environment."""
     MAX_EPISODES = max_episodes  # Maximum number of training episodes
-    N_TRIALS = 100        # Number of episodes to consider for mean reward
+    N_TRIALS = 50        # Number of episodes to consider for mean reward
     PRINT_EVERY = 10      # Print frequency
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole

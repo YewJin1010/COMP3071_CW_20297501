@@ -204,7 +204,7 @@ def evaluate(env, policy):
 def train_ppo(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes # Maximum number of episodes to run
     DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
-    N_TRIALS = 100 # Number of trials to average rewards over
+    N_TRIALS = 50 # Number of trials to average rewards over
     PRINT_EVERY = 10 # How often to print the progress
     PPO_STEPS = 5 # Number of steps to optimize the policy
     PPO_CLIP = 0.2 # Clipping parameter for the policy loss

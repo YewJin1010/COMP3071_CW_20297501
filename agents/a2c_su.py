@@ -175,7 +175,7 @@ def evaluate(env, policy):
 def train_a2c_su(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 100
+    N_TRIALS = 50
     PRINT_EVERY = 10
     LEARNING_RATE = 0.001
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
