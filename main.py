@@ -157,7 +157,6 @@ if __name__ == "__main__":
         3: ("DQN", train_dqn),
         4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
-
     }
     
     agent_name, agent_function = agents[agent_selection]
@@ -170,7 +169,7 @@ if __name__ == "__main__":
 
     for i in range(num_experiments):
         print(f"Experiment {i+1}")
-        train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
+        train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
         now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
         plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
         write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)

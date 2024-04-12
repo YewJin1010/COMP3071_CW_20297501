@@ -173,21 +173,23 @@ def evaluate(env, policy):
         
     return episode_reward
 
-def randomise_gravity(train_env, test_env):
+def randomise_gravity(train_env, test_env, parameters):
+    # Extract gravity value from parameters
+    max_gravity = float(parameters.split('=')[1].strip())
     min_gravity = -10
-    max_gravity = -1
 
     new_gravity = np.random.uniform(low=min_gravity, high=max_gravity)
     train_env.env.gravity = new_gravity
     test_env.env.gravity = new_gravity
 
-def randomise_wind(train_env, test_env):
-    # enable wind if wind power and turbulence power is greater than 0
+def randomise_wind(train_env, test_env, parameters):
+    # Extract wind and turbulence values from parameters
+    parts = parameters.split(',')
+    max_wind_power = float(parts[0].split('=')[1].strip())
+    max_turburlence_power = float(parts[1].split('=')[1].strip())
+ 
     min_wind_power = 1
-    max_wind_power = 20
-
     min_turburlence_power = 0.1
-    max_turburlence_power = 2
 
     wind_power = np.random.uniform(low=min_wind_power, high=max_wind_power)
     turburlence_power = np.random.uniform(low=min_turburlence_power, high=max_turburlence_power)
@@ -202,7 +204,7 @@ def randomise_wind(train_env, test_env):
     train_env.env.turbulence_power = turburlence_power
     test_env.env.turbulence_power = turburlence_power
     
-def train_a2c_su(train_env, test_env, max_episodes):
+def train_a2c_su(train_env, test_env, max_episodes, parameters):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
@@ -233,8 +235,10 @@ def train_a2c_su(train_env, test_env, max_episodes):
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
-        #randomise_gravity(train_env, test_env)
-        randomise_wind(train_env, test_env)
+        if 'Gravity' in parameters:
+            randomise_gravity(train_env, test_env, parameters)
+        if 'Wind' in parameters:
+            randomise_wind(train_env, test_env, parameters)
 
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, TAU)
         test_reward = evaluate(test_env, policy)

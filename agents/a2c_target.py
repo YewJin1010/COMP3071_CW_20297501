@@ -186,12 +186,23 @@ def randomise_gravity(train_env, test_env):
     train_env.env.gravity = new_gravity
     test_env.env.gravity = new_gravity
 
-def randomise_wind(train_env, test_env):
-    min_wind_power = 1
-    max_wind_power = 20
+def randomise_gravity(train_env, test_env, parameters):
+    # Extract gravity value from parameters
+    max_gravity = float(parameters.split('=')[1].strip())
+    min_gravity = -10
 
+    new_gravity = np.random.uniform(low=min_gravity, high=max_gravity)
+    train_env.env.gravity = new_gravity
+    test_env.env.gravity = new_gravity
+
+def randomise_wind(train_env, test_env, parameters):
+    # Extract wind and turbulence values from parameters
+    parts = parameters.split(',')
+    max_wind_power = float(parts[0].split('=')[1].strip())
+    max_turburlence_power = float(parts[1].split('=')[1].strip())
+ 
+    min_wind_power = 1
     min_turburlence_power = 0.1
-    max_turburlence_power = 2
 
     wind_power = np.random.uniform(low=min_wind_power, high=max_wind_power)
     turburlence_power = np.random.uniform(low=min_turburlence_power, high=max_turburlence_power)
@@ -206,7 +217,8 @@ def randomise_wind(train_env, test_env):
     train_env.env.turbulence_power = turburlence_power
     test_env.env.turbulence_power = turburlence_power
 
-def train_a2c_target(train_env, test_env, max_episodes):
+
+def train_a2c_target(train_env, test_env, max_episodes, parameters):
     """
     Trains the A2C agent with DQN-like target network in multiple environments.
     """
@@ -240,8 +252,10 @@ def train_a2c_target(train_env, test_env, max_episodes):
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
-        #randomise_gravity(train_env, test_env)
-        randomise_wind(train_env, test_env)
+        if 'Gravity' in parameters:
+            randomise_gravity(train_env, test_env, parameters)
+        if 'Wind' in parameters:
+            randomise_wind(train_env, test_env, parameters)
         
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
         test_reward = evaluate(test_env, policy)
