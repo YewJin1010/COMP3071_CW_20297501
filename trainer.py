@@ -83,14 +83,16 @@ def select_env():
 
 def create_env(env_name, params):
 
+    print("params: ", params)
+
     if env_name == "CartPole-v0":
-        experiment = "CartPole"
+        experiment = "cartpole_experiment"
         parameter = "standard"
         return gym.make(env_name), gym.make(env_name), experiment, parameter
 
     elif env_name == "LunarLander-v2":
 
-        if params.get("standard"): 
+        if "standard" in params: 
             experiment = "standard_experiment"
             parameter = "standard"
           
@@ -170,7 +172,7 @@ for agent_id, (agent_name, agent_function) in agents.items():
         
         for i in range(num_experiments):
             print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
-            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes)
+            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
             write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)
