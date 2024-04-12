@@ -24,22 +24,27 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, expe
     plt.hlines(reward_threshold, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
+    if parameter == "None":
+        parameter = "standard"
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/plots"
+    save_path = f"results/{env}/{agent}/{experiment}/{parameter}/plots"
     os.makedirs(save_path, exist_ok=True)
     plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
 def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration, max_episodes):  
     """Write results to a file."""
+    if parameter == "None":
+        parameter = "standard"
     # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/logs"
+    save_path = f"results/{env}/{agent}/{experiment}/{parameter}/logs"
     os.makedirs(save_path, exist_ok=True)
     # write results to a file
     with open(f"{save_path}/{agent}_{env}_{now}.txt", "w") as f:
         f.write(f"Environment: {env}\n")
         f.write(f"Agent: {agent}\n")
         f.write(f"Experiment: {experiment}\n")
-        f.write(f"Parameter: {parameter}\n")
+        if parameter:
+            f.write(f"Parameter: {parameter}\n")
         f.write(f"Time Taken: {duration} seconds\n")
         f.write(f"Episodes: {episodes} episodes\n")
         f.write(f"Max Episodes: {max_episodes} episodes\n")
@@ -51,8 +56,8 @@ def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, 
 def select_experiment():
     print("Select experiment to run:")
     print("1. Experiment with standard Lunar Lander environment")
-    print("2. Experiment with random gravity")
-    print("3. Experiment with random wind and turbulence")
+    print("2. Experiment with gravity modification")
+    print("3. Experiment with wind and turbulence modification")
 
     while True:
         try:
@@ -82,45 +87,65 @@ def select_env():
             print("Invalid input. Please enter a number.")
 
 def create_env(env_name):
+    enable_wind = False
 
     if env_name == "CartPole-v0":
         experiment = "CartPole"
-        parameter = "standard"
+        parameter = "None"
         return gym.make(env_name), gym.make(env_name), experiment, parameter
-
+    
     elif env_name == "LunarLander-v2":
         experiment_selection = select_experiment()
 
-        if experiment_selection == 1: 
+        if experiment_selection == 1:
             experiment = "standard_experiment"
-            parameter = "standard"
-          
+            train_env = gym.make(env_name)
+            test_env = gym.make(env_name)
+
         elif experiment_selection == 2:
+            experiment = "gravity_experiment"
             # Modify the gravity
             while True:
-                maximum_gravity = float(input("Enter maximum gravity (-10 to -1): "))
-                if -10 <= maximum_gravity <= -1:
+                gravity = float(input("Enter gravity (-10 to -1): "))
+                if -10 <= gravity <= -1:
                     break
                 else:
                     print("Gravity must be within the range -10 to -1. Please enter a valid value.")
-            experiment = "gravity_experiment"
-            parameter = f"Gravity = {maximum_gravity}"
+                
+            train_env = gym.make(env_name, gravity=gravity)
+            test_env = gym.make(env_name, gravity=gravity)
 
         elif experiment_selection == 3:
+            experiment = "wind_and_turbulence_experiment"
             # Modify the wind and turbulence
             while True:
-                maximum_wind_power = float(input("Enter maximum wind power (0 to 20): "))
-                maximum_turbulence_power = float(input("Enter maximum turbulence power (0 to 2): "))
-                if 0 <= maximum_wind_power <= 20 or 0 <= maximum_turbulence_power <= 2:
+                wind_power = float(input("Enter wind power (0 to 20): "))
+                if 0 <= wind_power <= 20:
                     break
                 else:
-                    print("Wind power must be within the range 0 to 20 and Turbulence power must be within the range 0 to 2. Please enter a valid value.")
-            experiment = "wind_and_turbulence_experiment"
-            parameter = f"Wind power = {maximum_wind_power}, Turbulence power = {maximum_turbulence_power}"
+                    print("Wind power must be within the range 0 to 20. Please enter a valid value.")
+            
+            while True:
+                turbulence_power = float(input("Enter turbulence power (0 to 2): "))
+                if 0 <= turbulence_power <= 2:
+                    break
+                else:
+                    print("Turbulence power must be within the range 0 to 2. Please enter a valid value.")
+            
+            if wind_power > 0 or turbulence_power > 0:
+                enable_wind = True
 
-        train_env = gym.make(env_name)
-        test_env = gym.make(env_name)
-
+            train_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
+            test_env = gym.make(env_name, enable_wind = enable_wind, wind_power=wind_power, turbulence_power=turbulence_power)
+        
+        # Get parameter value based on the experiment
+        if experiment == "gravity_experiment":
+            parameter = f"Gravity = {gravity}"
+        elif experiment == "wind_and_turbulence_experiment":
+            parameter = f"Wind power = {wind_power}, Turbulence power = {turbulence_power}"
+        else:
+            parameter = "None"
+            
         seed = 1234
         train_env.seed(seed)
         test_env.seed(seed + 1)
@@ -162,9 +187,7 @@ if __name__ == "__main__":
     
     agent_name, agent_function = agents[agent_selection]
     
-    max_episodes = int(input("Enter the maximum number of episodes to run (2000+ recommended): "))
-    if max_episodes < 2000:
-        print("Warning: Training for less than 2000 episodes may not result in optimal performance.")
+    max_episodes = int(input("Enter the maximum number of episodes to run: "))
 
     num_experiments = int(input("Enter the number of experiments to run: "))
 

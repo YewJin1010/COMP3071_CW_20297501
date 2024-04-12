@@ -182,6 +182,7 @@ def randomise_gravity(train_env, test_env):
     test_env.env.gravity = new_gravity
 
 def randomise_wind(train_env, test_env):
+    # enable wind if wind power and turbulence power is greater than 0
     min_wind_power = 1
     max_wind_power = 20
 
@@ -234,7 +235,7 @@ def train_a2c_su(train_env, test_env, max_episodes):
     for episode in range(1, MAX_EPISODES + 1):
         #randomise_gravity(train_env, test_env)
         randomise_wind(train_env, test_env)
-        
+
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, TAU)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
