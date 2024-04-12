@@ -106,8 +106,8 @@ def create_env(env_name, params=None):
             experiment_selection = 1
 
         if experiment_selection == 1:
-            experiment = "Random Gravity LunarLander experiment"
-            parameter = "random gravity"
+            experiment = "Random wind LunarLander experiment"
+            parameter = "random wind"
             train_env = gym.make(env_name)
             test_env = gym.make(env_name)
 

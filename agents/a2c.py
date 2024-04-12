@@ -166,10 +166,30 @@ def randomise_gravity(train_env, test_env):
     train_env.env.gravity = new_gravity
     test_env.env.gravity = new_gravity
 
+def randomise_wind(train_env, test_env):
+    min_wind_power = 1
+    max_wind_power = 20
+
+    min_turburlence_power = 0.1
+    max_turburlence_power = 2
+
+    wind_power = np.random.uniform(low=min_wind_power, high=max_wind_power)
+    turburlence_power = np.random.uniform(low=min_turburlence_power, high=max_turburlence_power)
+
+    if wind_power > 0 or turburlence_power > 0:
+        train_env.env.enable_wind = True
+        test_env.env.enable_wind = True
+    
+    train_env.env.wind_power = wind_power
+    test_env.env.wind_power = wind_power
+
+    train_env.env.turbulence_power = turburlence_power
+    test_env.env.turbulence_power = turburlence_power
+
 def train_a2c(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 50
+    N_TRIALS = 100
     PRINT_EVERY = 10
     LEARNING_RATE = 0.001
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
@@ -186,15 +206,14 @@ def train_a2c(train_env, test_env, max_episodes):
     actor_critic = ActorCritic(state_dim, action_dim, hidden_dim)
     optimizer = optim.Adam(actor_critic.parameters(), lr=LEARNING_RATE)
 
-
     train_rewards = []
     test_rewards = []
 
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
-
-        randomise_gravity(train_env, test_env)
+        #randomise_gravity(train_env, test_env)
+        randomise_wind(train_env, test_env)
         
         policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR)
         test_reward = evaluate(test_env, actor_critic)

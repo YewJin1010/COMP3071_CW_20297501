@@ -180,11 +180,31 @@ def randomise_gravity(train_env, test_env):
     new_gravity = np.random.uniform(low=min_gravity, high=max_gravity)
     train_env.env.gravity = new_gravity
     test_env.env.gravity = new_gravity
+
+def randomise_wind(train_env, test_env):
+    min_wind_power = 1
+    max_wind_power = 20
+
+    min_turburlence_power = 0.1
+    max_turburlence_power = 2
+
+    wind_power = np.random.uniform(low=min_wind_power, high=max_wind_power)
+    turburlence_power = np.random.uniform(low=min_turburlence_power, high=max_turburlence_power)
+
+    if wind_power > 0 or turburlence_power > 0:
+        train_env.env.enable_wind = True
+        test_env.env.enable_wind = True
+    
+    train_env.env.wind_power = wind_power
+    test_env.env.wind_power = wind_power
+
+    train_env.env.turbulence_power = turburlence_power
+    test_env.env.turbulence_power = turburlence_power
     
 def train_a2c_su(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 50
+    N_TRIALS = 100
     PRINT_EVERY = 10
     LEARNING_RATE = 0.001
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
@@ -212,7 +232,9 @@ def train_a2c_su(train_env, test_env, max_episodes):
     start_time = time.time()
 
     for episode in range(1, MAX_EPISODES + 1):
-        randomise_gravity(train_env, test_env)
+        #randomise_gravity(train_env, test_env)
+        randomise_wind(train_env, test_env)
+        
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, TAU)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)

@@ -209,10 +209,30 @@ def randomise_gravity(train_env, test_env):
     train_env.env.gravity = new_gravity
     test_env.env.gravity = new_gravity
 
+def randomise_wind(train_env, test_env):
+    min_wind_power = 1
+    max_wind_power = 20
+
+    min_turburlence_power = 0.1
+    max_turburlence_power = 2
+
+    wind_power = np.random.uniform(low=min_wind_power, high=max_wind_power)
+    turburlence_power = np.random.uniform(low=min_turburlence_power, high=max_turburlence_power)
+
+    if wind_power > 0 or turburlence_power > 0:
+        train_env.env.enable_wind = True
+        test_env.env.enable_wind = True
+    
+    train_env.env.wind_power = wind_power
+    test_env.env.wind_power = wind_power
+
+    train_env.env.turbulence_power = turburlence_power
+    test_env.env.turbulence_power = turburlence_power
+    
 def train_ppo(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes # Maximum number of episodes to run
     DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
-    N_TRIALS = 50 # Number of trials to average rewards over
+    N_TRIALS = 100 # Number of trials to average rewards over
     PRINT_EVERY = 10 # How often to print the progress
     PPO_STEPS = 5 # Number of steps to optimize the policy
     PPO_CLIP = 0.2 # Clipping parameter for the policy loss
@@ -243,8 +263,8 @@ def train_ppo(train_env, test_env, max_episodes):
 
     # Train the agent
     for episode in range(1, MAX_EPISODES+1):
-
-        randomise_gravity(train_env, test_env)
+        #randomise_gravity(train_env, test_env)
+        randomise_wind(train_env, test_env)
         
         policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
         

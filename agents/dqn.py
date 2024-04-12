@@ -159,6 +159,26 @@ def randomise_gravity(train_env, test_env):
     train_env.env.gravity = new_gravity
     test_env.env.gravity = new_gravity
 
+def randomise_wind(train_env, test_env):
+    min_wind_power = 1
+    max_wind_power = 20
+
+    min_turburlence_power = 0.1
+    max_turburlence_power = 2
+
+    wind_power = np.random.uniform(low=min_wind_power, high=max_wind_power)
+    turburlence_power = np.random.uniform(low=min_turburlence_power, high=max_turburlence_power)
+
+    if wind_power > 0 or turburlence_power > 0:
+        train_env.env.enable_wind = True
+        test_env.env.enable_wind = True
+    
+    train_env.env.wind_power = wind_power
+    test_env.env.wind_power = wind_power
+
+    train_env.env.turbulence_power = turburlence_power
+    test_env.env.turbulence_power = turburlence_power
+
 def train_dqn(train_env, test_env, max_episodes):
     """Deep Q-Learning algorithm."""
     N_TRIALS = 100              # Number of consecutive trials needed to solve environment
@@ -176,7 +196,8 @@ def train_dqn(train_env, test_env, max_episodes):
 
     eps = EPS_START  # Initialize epsilon
     for episode in range(1, max_episodes + 1):
-        randomise_gravity(train_env, test_env)
+        #randomise_gravity(train_env, test_env)
+        randomise_wind(train_env, test_env)
 
         state = train_env.reset()
         episode_reward = 0
@@ -227,10 +248,10 @@ def train_dqn(train_env, test_env, max_episodes):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
-"""
+
 train_env = gym.make("LunarLander-v2")
 test_env = gym.make("LunarLander-v2")
 
 NUM_EPISODES = 2000
 train_dqn(train_env, test_env, NUM_EPISODES)
-"""
+
