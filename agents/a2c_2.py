@@ -200,7 +200,7 @@ def train_a2c(train_env, test_env, max_episodes, parameters):
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
     state_dim = train_env.observation_space.shape[0]
-    hidden_dim = 128
+    hidden_dim = 256
     if isinstance(train_env.action_space, gym.spaces.Discrete):
         action_dim = train_env.action_space.n
     else:
