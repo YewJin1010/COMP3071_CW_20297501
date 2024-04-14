@@ -130,6 +130,8 @@ def train_a2c(train_env, test_env, max_episodes, parameters):
 
     env.close()
 
+"""
 # Run for 5 times
 for i in range(5):
     train_a2c(env, env, num_episodes, None)
+"""
