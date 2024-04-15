@@ -157,11 +157,11 @@ if max_episodes < 2000:
 num_experiments = int(input("Enter the number of experiments to run: "))
  
 agents = {
-        1: ("PPO", train_ppo),
-        #2: ("A2C", train_a2c),
+        #1: ("PPO", train_ppo),
+        2: ("A2C", train_a2c),
         #3: ("DQN", train_dqn),
-        #4: ("A2C_Target", train_a2c_target),
-        #5: ("A2C_SU", train_a2c_su),
+        4: ("A2C_Target", train_a2c_target),
+        5: ("A2C_SU", train_a2c_su),
     }
 
 for agent_id, (agent_name, agent_function) in agents.items():
