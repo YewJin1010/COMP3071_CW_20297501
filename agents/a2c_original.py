@@ -7,11 +7,6 @@ import torch.distributions as distributions
 import numpy as np
 import gym
 import time
-import random
-
-EPS_START = 1.0             # Starting epsilon for epsilon-greedy strategy
-EPS_END = 0.01              # Minimum epsilon
-EPS_DECAY = 0.995           # Epsilon decay rate
 
 class MLP(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
@@ -49,7 +44,7 @@ def init_weights(m):
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor, eps):
+def train(env, policy, optimizer, discount_factor):
     
     policy.train()
     
@@ -72,12 +67,6 @@ def train(env, policy, optimizer, discount_factor, eps):
         action_pred, value_pred = policy(state)
                 
         action_prob = F.softmax(action_pred, dim = -1)
-
-        p = random.random()
-        if p <= eps:
-            action = env.action_space.sample()
-        else:
-            action = torch.argmax(action_prob, dim=-1)
                 
         dist = distributions.Categorical(action_prob)
 
@@ -174,44 +163,12 @@ def evaluate(env, policy):
         episode_reward += reward
         
     return episode_reward
-
-def randomise_gravity(train_env, test_env, parameters):
-    # Extract gravity value from parameters
-    max_gravity = float(parameters.split('=')[1].strip())
-    min_gravity = -10
-
-    new_gravity = np.random.uniform(low=min_gravity, high=max_gravity)
-    train_env.env.gravity = new_gravity
-    test_env.env.gravity = new_gravity
-
-def randomise_wind(train_env, test_env, parameters):
-    # Extract wind and turbulence values from parameters
-    parts = parameters.split(',')
-    max_wind_power = float(parts[0].split('=')[1].strip())
-    max_turburlence_power = float(parts[1].split('=')[1].strip())
- 
-    min_wind_power = 1
-    min_turburlence_power = 0.1
-
-    wind_power = np.random.uniform(low=min_wind_power, high=max_wind_power)
-    turburlence_power = np.random.uniform(low=min_turburlence_power, high=max_turburlence_power)
-
-    if wind_power > 0 or turburlence_power > 0:
-        train_env.env.enable_wind = True
-        test_env.env.enable_wind = True
-    
-    train_env.env.wind_power = wind_power
-    test_env.env.wind_power = wind_power
-
-    train_env.env.turbulence_power = turburlence_power
-    test_env.env.turbulence_power = turburlence_power
-
-def train_a2c(train_env, test_env, max_episodes, parameters):
+def train_a2c(train_env, test_env, max_episodes):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
-    PRINT_EVERY = 100
-    LEARNING_RATE = 5e-4
+    PRINT_EVERY = 10
+    LEARNING_RATE = 0.001
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -233,23 +190,15 @@ def train_a2c(train_env, test_env, max_episodes, parameters):
 
     start_time = time.time()
 
-    eps = EPS_START
     for episode in range(1, MAX_EPISODES + 1):
-        if 'Gravity' in parameters:
-            randomise_gravity(train_env, test_env, parameters)
-        if 'Wind' in parameters:
-            randomise_wind(train_env, test_env, parameters)
-
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, eps)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
         test_reward = evaluate(test_env, policy)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
 
-        eps = max(EPS_END, eps * EPS_DECAY)  # Decay epsilon
-
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
-        
+
         if episode % PRINT_EVERY == 0:
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 

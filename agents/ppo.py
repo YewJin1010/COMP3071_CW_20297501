@@ -293,7 +293,6 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
         test_rewards.append(test_reward)
         eps = max(EPS_END, eps * EPS_DECAY)  # Decay epsilon
 
-    
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
         
