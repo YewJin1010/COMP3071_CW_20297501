@@ -38,7 +38,6 @@ class ActorCritic(nn.Module):
         value = self.critic(state)
         return action_mean, value
 
-
 def init_weights(m):
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
@@ -273,7 +272,9 @@ def train_a2c(train_env, test_env, max_episodes, parameters):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
+"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
 train_a2c(train_env, test_env, 2000, 'standard')
+"""

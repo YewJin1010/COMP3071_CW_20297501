@@ -150,8 +150,6 @@ def update_policy(advantages, log_prob_actions, returns, values, optimizer):
 def evaluate(env, policy):
     
     policy.eval()
-    
-    rewards = []
     done = False
     episode_reward = 0
 
