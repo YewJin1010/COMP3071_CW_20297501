@@ -10,6 +10,10 @@ import gym
 import time
 import random
 
+EPS_START = 1.0             # Starting epsilon for epsilon-greedy strategy
+EPS_END = 0.01              # Minimum epsilon
+EPS_DECAY = 0.995           # Epsilon decay rate
+
 # Multi-Layer Perceptron (MLP) network
 class MLP(nn.Module):
 
@@ -64,8 +68,7 @@ def init_weights(m):
         m.bias.data.fill_(0)
 
 # Train the agent using Proximal Policy Optimization (PPO)
-def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
-    EPSILON = 1.0
+def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip, eps):
         
     policy.train()
         
@@ -90,7 +93,7 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         action_prob = F.softmax(action_pred, dim = -1)
 
         p = random.random()
-        if p <= EPSILON:
+        if p <= eps:
             action = env.action_space.sample()
         else:
             action = torch.argmax(action_prob, dim=-1)
@@ -115,9 +118,6 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
 
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
-
-    # Decay epsilon after each episode
-    EPSILON *= 0.999
 
     policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip)
     
@@ -249,10 +249,10 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
     MAX_EPISODES = max_episodes # Maximum number of episodes to run
     DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
     N_TRIALS = 100 # Number of trials to average rewards over
-    PRINT_EVERY = 10 # How often to print the progress
+    PRINT_EVERY = 100 # How often to print the progress
     PPO_STEPS = 5 # Number of steps to optimize the policy
     PPO_CLIP = 0.2 # Clipping parameter for the policy loss
-    LEARNING_RATE = 0.001 # Learning rate for the optimizer
+    LEARNING_RATE = 5e-4 # Learning rate for the optimizer
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
@@ -277,6 +277,7 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
 
     start_time = time.time()
 
+    eps = EPS_START
     # Train the agent
     for episode in range(1, MAX_EPISODES+1):
         if 'Gravity' in parameters:
@@ -284,13 +285,15 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
         if 'Wind' in parameters:
             randomise_wind(train_env, test_env, parameters)
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP)
+        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, PPO_STEPS, PPO_CLIP, eps)
         
         test_reward = evaluate(test_env, policy)
         
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
-        
+        eps = max(EPS_END, eps * EPS_DECAY)  # Decay epsilon
+
+    
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
         

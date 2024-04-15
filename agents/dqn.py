@@ -8,7 +8,7 @@ from collections import namedtuple, deque
 import gym
 import time
 
-# Hyperparameters (may need to be tuned for optimal performance)
+# Hyperparameters 
 BUFFER_SIZE = int(1e5)      # Replay buffer size
 BATCH_SIZE = 64             # Minibatch size
 GAMMA = 0.99                # Discount factor

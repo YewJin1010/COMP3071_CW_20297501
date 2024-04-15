@@ -73,12 +73,14 @@ def train_a2c(train_env, test_env, max_episodes, parameters):
         for step in range(max_steps_per_episode):
             state_tensor = torch.FloatTensor(state).unsqueeze(0)
 
+            # Calculate action probabilities
+            action_probs = actor(state_tensor)
+
             # Choose action
             if random.random() < epsilon:
                 action = random.randint(0, action_size - 1)  # Random action with probability epsilon
             else:
-                action_probs = actor(state_tensor)
-                action = torch.multinomial(action_probs, 1).item()
+                action = torch.multinomial(action_probs, 1).item()  # Choose action according to probabilities
 
             # Take action
             next_state, reward, done, _ = train_env.step(action)
@@ -114,7 +116,7 @@ def train_a2c(train_env, test_env, max_episodes, parameters):
 
         if episode % PRINT_EVERY == 0:
             mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
-            print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Epsilon: {epsilon:.3f} |')
+            #print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Epsilon: {epsilon:.3f} |')
 
         # Evaluation on test environment
         if episode % PRINT_EVERY == 0:

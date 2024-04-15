@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import gym
 import time
+import random
 
 # Multi-Layer Perceptron (MLP) network
 class MLP(nn.Module):
@@ -64,6 +65,7 @@ def init_weights(m):
 
 # Train the agent using Proximal Policy Optimization (PPO)
 def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
+    EPSILON = 1.0
         
     policy.train()
         
@@ -86,6 +88,13 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
         states.append(state)        
         action_pred, value_pred = policy(state)
         action_prob = F.softmax(action_pred, dim = -1)
+
+        p = random.random()
+        if p <= EPSILON:
+            action = env.action_space.sample()
+        else:
+            action = torch.argmax(action_prob, dim=-1)
+
         dist = distributions.Categorical(action_prob)
 
         action = dist.sample()        
@@ -106,6 +115,9 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip):
 
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, values)
+
+    # Decay epsilon after each episode
+    EPSILON *= 0.999
 
     policy_loss, value_loss = update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip)
     
