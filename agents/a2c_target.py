@@ -162,29 +162,32 @@ def update_policy(advantages, log_prob_actions, returns, values, optimizer, stat
     return policy_loss.item(), value_loss.item()
 
 def evaluate(env, policy):
-  """
-  Evaluates the policy on the environment by playing episodes.
-  """
-  policy.eval()
+    
+    policy.eval()
+    
+    rewards = []
+    done = False
+    episode_reward = 0
 
-  rewards = []
-  done = False
-  episode_reward = 0
+    state = env.reset()
 
-  state = env.reset()
+    while not done:
 
-  while not done:
-    state = torch.FloatTensor(state).unsqueeze(0)
+        state = torch.FloatTensor(state).unsqueeze(0)
 
-    with torch.no_grad():
-      action_pred, _ = policy(state)
-      action_prob = F.softmax(action_pred, dim=-1)
-      action = torch.argmax(action_prob, dim=-1)
+        with torch.no_grad():
+        
+            action_pred, _ = policy(state)
 
-    state, reward, done, _ = env.step(action.item())
-    episode_reward += reward
+            action_prob = F.softmax(action_pred, dim = -1)
+                
+        action = torch.argmax(action_prob, dim = -1)
+                
+        state, reward, done, _ = env.step(action.item())
 
-  return episode_reward
+        episode_reward += reward
+        
+    return episode_reward
 
 def randomise_gravity(train_env, test_env):
     min_gravity = -10
@@ -299,7 +302,9 @@ def train_a2c_target(train_env, test_env, max_episodes, parameters):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
+"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
 train_rewards, test_rewards, reward_threshold, episodes, duration = train_a2c_target(train_env, test_env, 2000, 'Standard')
+"""
