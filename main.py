@@ -84,7 +84,7 @@ def select_env():
 def create_env(env_name):
 
     if env_name == "CartPole-v0":
-        experiment = "CartPole"
+        experiment = "cartpole_experiment"
         parameter = "standard"
         return gym.make(env_name), gym.make(env_name), experiment, parameter
 

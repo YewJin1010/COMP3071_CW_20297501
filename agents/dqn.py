@@ -79,7 +79,7 @@ class Agent:
         # Q-Network
         self.qnetwork_local = QNetwork(state_size, action_size, seed)
         self.qnetwork_target = QNetwork(state_size, action_size, seed)
-        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
+        self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR, weight_decay=1e-5)
 
         # Replay memory
         self.memory = ReplayBuffer(BUFFER_SIZE, BATCH_SIZE, seed)
@@ -200,10 +200,11 @@ def train_dqn(train_env, test_env, max_episodes, parameters):
 
     eps = EPS_START  # Initialize epsilon
     for episode in range(1, max_episodes + 1):
-        if 'Gravity' in parameters:
-            randomise_gravity(train_env, test_env, parameters)
-        if 'Wind' in parameters:
-            randomise_wind(train_env, test_env, parameters)
+        if train_env.unwrapped.spec.id == 'LunarLander-v2':
+            if 'Gravity' in parameters:
+                randomise_gravity(train_env, test_env, parameters)
+            if 'Wind' in parameters:
+                randomise_wind(train_env, test_env, parameters)
 
         state = train_env.reset()
         episode_reward = 0

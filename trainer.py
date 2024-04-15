@@ -157,23 +157,34 @@ if max_episodes < 2000:
 num_experiments = int(input("Enter the number of experiments to run: "))
  
 agents = {
-        #1: ("PPO", train_ppo),
+        1: ("PPO", train_ppo),
         2: ("A2C", train_a2c),
-        #3: ("DQN", train_dqn),
+        3: ("DQN", train_dqn),
         4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
     }
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
-    for params in experiment_parameters:
-        # Modify the environment based on the current parameter combination
-        train_env, test_env, experiment, parameter = create_env(env_name, params)
+    if env_name == "LunarLander-v2":
+        for params in experiment_parameters:
+            # Modify the environment based on the current parameter combination
+            train_env, test_env, experiment, parameter = create_env(env_name, params)
+            
+            for i in range(num_experiments):
+                print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
+                train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
+                now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+                plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
+                write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)
+                print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")
         
+    else: 
+        train_env, test_env, experiment, parameter = create_env(env_name, {})
         for i in range(num_experiments):
-            print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
+            print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name}")
             train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
             write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)
-            print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")
+            print(f"Experiment {i+1}/{num_experiments} completed for {agent_name}")
