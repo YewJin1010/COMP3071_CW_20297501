@@ -7,51 +7,49 @@ import torch.distributions as distributions
 import numpy as np
 import gym
 import time
+import random
 
-class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
-        super().__init__()
+EPS_START = 1.0             # Starting epsilon for epsilon-greedy strategy
+EPS_END = 0.01              # Minimum epsilon
+EPS_DECAY = 0.995           # Epsilon decay rate
+
+class ActorCritic(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=128):
+        super(ActorCritic, self).__init__()
         
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
-            nn.Linear(hidden_dim, output_dim)
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
         )
         
-    def forward(self, x):
-        x = self.net(x)
-        return x
-    
-class ActorCritic(nn.Module):
-    def __init__(self, actor, critic, target_actor, target_critic):
-        super().__init__()
-        self.actor = actor
-        self.critic = critic
-        self.target_actor = target_actor
-        self.target_critic = target_critic
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
 
     def forward(self, state):
-        action_pred = self.actor(state)
-        value_pred = self.critic(state)
-        return action_pred, value_pred
-
+        action_mean = self.actor(state)
+        value = self.critic(state)
+        return action_mean, value
+    
     def soft_update(self, tau):
         for target_param, local_param in zip(self.target_actor.parameters(), self.actor.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
         for target_param, local_param in zip(self.target_critic.parameters(), self.critic.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
-
 def init_weights(m):
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
-
-def train(env, policy, optimizer, discount_factor, tau):
+    
+def train(env, policy, optimizer, discount_factor, tau, eps):
     
     policy.train()
     
@@ -74,11 +72,15 @@ def train(env, policy, optimizer, discount_factor, tau):
         action_pred, value_pred = policy(state)
                 
         action_prob = F.softmax(action_pred, dim = -1)
+
+        p = random.random()
+        if p <= eps:
+            action = env.action_space.sample()
+        else:
+            action = torch.argmax(action_prob, dim=-1)
                 
         dist = distributions.Categorical(action_prob)
-
         action = dist.sample()
-        
         log_prob_action = dist.log_prob(action)
         
         state, reward, done, _ = env.step(action.item())
@@ -209,41 +211,38 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
     PRINT_EVERY = 10
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 5e-4
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
     TAU = 1e-3 # Target network update factor
 
-    INPUT_DIM = train_env.observation_space.shape[0]
-    HIDDEN_DIM = 128
-    OUTPUT_DIM = train_env.action_space.n
+    state_dim = train_env.observation_space.shape[0]
+    hidden_dim = 128
+    action_dim = train_env.action_space.n
 
-    actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
-    critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
-    target_actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
-    target_critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
+    actor_critic = ActorCritic(state_dim, action_dim, hidden_dim)
+    optimizer = optim.Adam(actor_critic.parameters(), lr=LEARNING_RATE)
 
-    policy = ActorCritic(actor, critic, target_actor, target_critic)
-    policy.apply(init_weights)
-
-    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
+    actor_critic.apply(init_weights)
 
     train_rewards = []
     test_rewards = []
 
     start_time = time.time()
 
+    eps = EPS_START
     for episode in range(1, MAX_EPISODES + 1):
         if 'Gravity' in parameters:
             randomise_gravity(train_env, test_env, parameters)
         if 'Wind' in parameters:
             randomise_wind(train_env, test_env, parameters)
 
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, TAU)
-        test_reward = evaluate(test_env, policy)
+        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR, TAU)
+        test_reward = evaluate(test_env, actor_critic)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
+        eps = max(EPS_END, eps * EPS_DECAY)  # Decay epsilon
 
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])

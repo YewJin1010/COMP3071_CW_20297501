@@ -6,42 +6,50 @@ import torch.distributions as distributions
 
 import numpy as np
 import gym
-import random
 import time
+import random
 
-class MLP(nn.Module):
-  def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
-    super().__init__()
-
-    self.net = nn.Sequential(
-        nn.Linear(input_dim, hidden_dim),
-        nn.Dropout(dropout),
-        nn.PReLU(),
-        nn.Linear(hidden_dim, hidden_dim),
-        nn.Dropout(dropout),
-        nn.PReLU(),
-        nn.Linear(hidden_dim, output_dim)
-    )
-
-  def forward(self, x):
-    x = self.net(x)
-    return x
+EPS_START = 1.0             # Starting epsilon for epsilon-greedy strategy
+EPS_END = 0.01              # Minimum epsilon
+EPS_DECAY = 0.995           # Epsilon decay rate
 
 class ActorCritic(nn.Module):
-    def __init__(self, actor, critic, target_critic):
-        super().__init__()
-        self.actor = actor
-        self.critic = critic
-        self.target_critic = target_critic
+    def __init__(self, state_dim, action_dim, hidden_dim=128):
+        super(ActorCritic, self).__init__()
 
-        # Update target network periodically through hard update
-        self.target_update_frequency = 1000  # Update target critic every 1000 steps
+        # Actor network
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+
+        # Critic network
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+
+        # Target critic network (initialized with the same weights as the critic)
+        self.target_critic = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
         self.target_update_counter = 0
+        self.target_update_frequency = 100  # Update target network every 100 steps
 
     def forward(self, state):
-        action_pred = self.actor(state)
-        value_pred = self.critic(state)
-        return action_pred, value_pred
+        action_mean = self.actor(state)
+        value = self.critic(state)
+        return action_mean, value
 
     def update_target(self):
         if self.target_update_counter % self.target_update_frequency == 0:
@@ -49,12 +57,11 @@ class ActorCritic(nn.Module):
         self.target_update_counter += 1
 
 def init_weights(m):
-  if type(m) == nn.Linear:
-    torch.nn.init.xavier_normal_(m.weight)
-    m.bias.data.fill_(0)
+    if type(m) == nn.Linear:
+        torch.nn.init.xavier_normal_(m.weight)
+        m.bias.data.fill_(0)
 
-def train(env, policy, optimizer, discount_factor):
-    EPSILON = 1.0
+def train(env, policy, optimizer, discount_factor, eps):
 
     policy.train()
 
@@ -79,7 +86,7 @@ def train(env, policy, optimizer, discount_factor):
         action_prob = F.softmax(action_pred, dim=-1)
 
         p = random.random()
-        if p <= EPSILON:
+        if p <= eps:
             action = env.action_space.sample()
         else:
             action = torch.argmax(action_prob, dim=-1)
@@ -103,13 +110,17 @@ def train(env, policy, optimizer, discount_factor):
     returns = calculate_returns(rewards, discount_factor)
     advantages = calculate_advantages(returns, policy.critic(states).squeeze(-1))
 
-    # Decay epsilon after each episode
-    EPSILON *= 0.999
-
-    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, policy.critic, optimizer, states, policy)
+    policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer, states, policy)
 
     # Update target network using hard update
     policy.update_target()
+
+    # L2 Regularization
+    l2_reg = 0.0
+    l2_lambda = 0.1
+    for param in policy.parameters():
+        l2_reg += torch.norm(param)
+    policy_loss += l2_lambda * l2_reg
 
     return policy_loss, value_loss, episode_reward
 
@@ -130,28 +141,25 @@ def calculate_advantages(returns, values, normalize=True):
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
-def update_policy(advantages, log_prob_actions, returns, critic, optimizer, states, policy):
-    """
-    Updates the actor and critic networks using advantages, log probabilities, 
-    returns, and the critic network for value estimation.
-    """
+def update_policy(advantages, log_prob_actions, returns, values, optimizer, states, policy):
+        
     advantages = advantages.detach()
     returns = returns.detach()
-
-    # Policy Loss (uses advantages and log probabilities)
+        
     policy_loss = - (advantages * log_prob_actions).sum()
-
+    
     # Value Loss (uses MSE between returns and critic's value estimates)
     target_values = policy.target_critic(states).squeeze(-1)
     value_loss = F.smooth_l1_loss(returns, target_values).sum()
-
+        
     optimizer.zero_grad()
+    
     policy_loss.backward()
     value_loss.backward()
+    
     optimizer.step()
-
+    
     return policy_loss.item(), value_loss.item()
-
 
 def evaluate(env, policy):
   """
@@ -231,36 +239,32 @@ def train_a2c_target(train_env, test_env, max_episodes, parameters):
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
-    INPUT_DIM = train_env.observation_space.shape[0]
-    HIDDEN_DIM = 128
-    OUTPUT_DIM = train_env.action_space.n
+    state_dim = train_env.observation_space.shape[0]
+    hidden_dim = 128
+    action_dim = train_env.action_space.n
 
-    # Create actor, critic, and target critic networks
-    actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
-    critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
-    target_critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)  # Target critic with same architecture
+    actor_critic = ActorCritic(state_dim, action_dim, hidden_dim)
+    optimizer = optim.Adam(actor_critic.parameters(), lr=LEARNING_RATE)
 
-    # Initialize weights
-    policy = ActorCritic(actor, critic, target_critic)
-    policy.apply(init_weights)
-
-    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
+    actor_critic.apply(init_weights)
 
     train_rewards = []
     test_rewards = []
 
     start_time = time.time()
 
+    eps = EPS_START
     for episode in range(1, MAX_EPISODES + 1):
         if 'Gravity' in parameters:
             randomise_gravity(train_env, test_env, parameters)
         if 'Wind' in parameters:
             randomise_wind(train_env, test_env, parameters)
         
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR)
-        test_reward = evaluate(test_env, policy)
+        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR, eps)
+        test_reward = evaluate(test_env, actor_critic)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
+        eps = max(EPS_END, eps * EPS_DECAY)  # Decay epsilon
 
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
@@ -295,9 +299,7 @@ def train_a2c_target(train_env, test_env, max_episodes, parameters):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
-"""
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, reward_threshold, episode, duration = train_a2c_target(train_env, test_env)
-"""
+train_rewards, test_rewards, reward_threshold, episodes, duration = train_a2c_target(train_env, test_env, 2000, 'Standard')

@@ -254,10 +254,3 @@ def train_dqn(train_env, test_env, max_episodes, parameters):
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
 
-"""
-train_env = gym.make("LunarLander-v2")
-test_env = gym.make("LunarLander-v2")
-
-NUM_EPISODES = 2000
-train_dqn(train_env, test_env, NUM_EPISODES)
-""" 

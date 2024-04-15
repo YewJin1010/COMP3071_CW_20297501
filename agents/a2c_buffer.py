@@ -8,6 +8,12 @@ from collections import deque, namedtuple
 import matplotlib.pyplot as plt
 import numpy as np
 import gym
+import time
+import random
+
+EPS_START = 1.0             # Starting epsilon for epsilon-greedy strategy
+EPS_END = 0.01              # Minimum epsilon
+EPS_DECAY = 0.995           # Epsilon decay rate
 
 class ReplayBuffer:
     def __init__(self, capacity):
@@ -31,33 +37,30 @@ class ReplayBuffer:
         
         return states, actions, rewards, next_states, dones
 
-class MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, dropout=0.1):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
+class ActorCritic(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=128):
+        super(ActorCritic, self).__init__()
+        
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.Dropout(dropout),
-            nn.PReLU(),
-            nn.Linear(hidden_dim, output_dim)
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+        
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
         )
 
-    def forward(self, x):
-        x = self.net(x)
-        return x
-
-class ActorCritic(nn.Module):
-    def __init__(self, actor, critic):
-        super().__init__()
-        self.actor = actor
-        self.critic = critic
-
     def forward(self, state):
-        action_pred = self.actor(state)
-        value_pred = self.critic(state)
-        return action_pred, value_pred
+        action_mean = self.actor(state)
+        value = self.critic(state)
+        return action_mean, value
 
 def init_weights(m):
     if type(m) == nn.Linear:
@@ -65,7 +68,9 @@ def init_weights(m):
         m.bias.data.fill_(0)
 
 def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
+
     policy.train()
+    
     batch_states, batch_actions, batch_rewards, batch_next_states, batch_dones = replay_buffer.sample_batch(batch_size)
     log_prob_actions = []
     values = []
@@ -98,6 +103,13 @@ def train(env, policy, optimizer, discount_factor, replay_buffer, batch_size):
     advantages = calculate_advantages(returns, values)
 
     policy_loss, value_loss = update_policy(advantages, log_prob_actions, returns, values, optimizer)
+
+    # L2 Regularization
+    l2_reg = 0.0
+    l2_lambda = 0.1
+    for param in policy.parameters():
+        l2_reg += torch.norm(param)
+    policy_loss += l2_lambda * l2_reg
 
     return policy_loss, value_loss, episode_reward
 
@@ -147,23 +159,25 @@ def train_a2c_with_replay_buffer(train_env, test_env):
     REWARD_THRESHOLD_CARTPOLE = 195
     REWARD_THRESHOLD_LUNAR_LANDER = 200
 
-    INPUT_DIM = train_env.observation_space.shape[0]
-    HIDDEN_DIM = 128
-    OUTPUT_DIM = train_env.action_space.n
-
     BUFFER_SIZE = int(1e5)
     BATCH_SIZE = 64
 
-    actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
-    critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
-    policy = ActorCritic(actor, critic)
-    policy.apply(init_weights)
-    optimizer = optim.Adam(policy.parameters(), lr=LEARNING_RATE)
+    state_dim = train_env.observation_space.shape[0]
+    hidden_dim = 128
+    action_dim = train_env.action_space.n
+
+    actor_critic = ActorCritic(state_dim, action_dim, hidden_dim)
+    optimizer = optim.Adam(actor_critic.parameters(), lr=LEARNING_RATE)
+    actor_critic.apply(init_weights)
+                           
     replay_buffer = ReplayBuffer(capacity=BUFFER_SIZE)
 
     train_rewards = []
     test_rewards = []
 
+    start_time = time.time()
+
+    eps = EPS_START
     for _ in range(WARMUP_EPISODES):
         state = train_env.reset()
         done = False
@@ -176,12 +190,17 @@ def train_a2c_with_replay_buffer(train_env, test_env):
             state = next_state
 
     for episode in range(1, MAX_EPISODES+1):
-        policy_loss, value_loss, train_reward = train(train_env, policy, optimizer, DISCOUNT_FACTOR, replay_buffer, BATCH_SIZE)
-        test_reward = evaluate(test_env, policy)
+        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR, replay_buffer, BATCH_SIZE)
+        test_reward = evaluate(test_env, actor_critic)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
+
+        eps = max(EPS_END, eps * EPS_DECAY)  # Decay epsilon
+
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
+
+
         if episode % PRINT_EVERY == 0:
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
         if test_env.unwrapped.spec.id == 'CartPole-v0':

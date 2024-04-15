@@ -62,10 +62,7 @@ def train(env, policy, optimizer, discount_factor, eps):
             state, _ = state
 
         state = torch.FloatTensor(state).unsqueeze(0)
-        
-        # Normalize state
-        # state = (state - state.mean()) / state.std()
-
+    
         states.append(state)
         action_pred, value_pred = policy(state)
                 
@@ -271,10 +268,3 @@ def train_a2c(train_env, test_env, max_episodes, parameters):
 
     print("Did not reach reward threshold")
     return train_rewards, test_rewards, None, episode, duration
-
-"""
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
-train_a2c(train_env, test_env, 2000, 'standard')
-"""
