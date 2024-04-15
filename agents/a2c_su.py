@@ -33,6 +33,24 @@ class ActorCritic(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
 
+        # Initialize target networks
+        self.target_actor = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+        self.target_critic = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, 1)
+        )
+        self.target_update_counter = 0
+        self.target_update_frequency = 100  # Update target network every 100 steps
+
     def forward(self, state):
         action_mean = self.actor(state)
         value = self.critic(state)
@@ -238,7 +256,7 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
         if 'Wind' in parameters:
             randomise_wind(train_env, test_env, parameters)
 
-        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR, TAU)
+        policy_loss, value_loss, train_reward = train(train_env, actor_critic, optimizer, DISCOUNT_FACTOR, TAU, eps)
         test_reward = evaluate(test_env, actor_critic)
         train_rewards.append(train_reward)
         test_rewards.append(test_reward)
@@ -282,5 +300,5 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
 train_env = gym.make('LunarLander-v2')
 test_env = gym.make('LunarLander-v2')
 
-train_rewards, test_rewards, _, _ = train_a2c_su(train_env, test_env)
-""" 
+train_rewards, test_rewards, reward_threshold, episodes, duration = train_a2c_su(train_env, test_env, 2000, 'Gravity=10')
+"""
