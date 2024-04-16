@@ -246,6 +246,8 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
 
     train_rewards = []
     test_rewards = []
+    mean_train_rewards_list = []
+    mean_test_rewards_list = []
 
     start_time = time.time()
 
@@ -265,6 +267,9 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
 
+        mean_train_rewards_list.append(mean_train_rewards)
+        mean_test_rewards_list.append(mean_test_rewards)
+
         if episode % PRINT_EVERY == 0:
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
@@ -277,7 +282,7 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
                     duration = end_time - start_time
 
                     print(f'Reached reward threshold in {episode} episodes for CartPole')
-                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode, duration
+                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode, duration, mean_train_rewards_list, mean_test_rewards_list
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
@@ -287,18 +292,10 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
                 duration = end_time - start_time
 
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode, duration
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode, duration, mean_train_rewards_list, mean_test_rewards_list
 
     end_time = time.time()
     duration = end_time - start_time
 
     print("Did not reach reward threshold")
-    return train_rewards, test_rewards, None, episode, duration
-
-"""
-# LunarLander-v2
-train_env = gym.make('LunarLander-v2')
-test_env = gym.make('LunarLander-v2')
-
-train_rewards, test_rewards, reward_threshold, episodes, duration = train_a2c_su(train_env, test_env, 2000, 'Gravity=10')
-"""
+    return train_rewards, test_rewards, None, episode, duration, mean_train_rewards_list, mean_test_rewards_list

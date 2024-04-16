@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import os
 import datetime
 import csv
+import pandas as pd
 
 # Import agents
 from agents.ppo import train_ppo
@@ -13,8 +14,9 @@ from agents.a2c import train_a2c
 from agents.dqn import train_dqn
 from agents.a2c_target import train_a2c_target
 from agents.a2c_su import train_a2c_su
+from agents.a2c_mlp import train_a2c_mlp
 
-def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now):
+def plot_results(train_rewards, test_rewards, reward_threshold, now, plot_save_path):
     """Plot training and testing rewards."""
     plt.figure(figsize=(12, 8))
     plt.plot(test_rewards, label='Test Reward')
@@ -24,29 +26,26 @@ def plot_results(train_rewards, test_rewards, reward_threshold, env, agent, expe
     plt.hlines(reward_threshold, 0, len(test_rewards), color='r')
     plt.legend(loc='lower right')
     plt.grid()
-    # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/plots"
-    os.makedirs(save_path, exist_ok=True)
-    plt.savefig(f"{save_path}/{agent}_{env}_{now}.png")
 
-def write_results(episodes, train_rewards, test_rewards, reward_threshold, env, agent, experiment, parameter, now, duration, max_episodes):  
+    # Save the plot
+    plt.savefig(f"{plot_save_path}/plot_{now}.png")
+
+def write_results(episodes, train_rewards, test_rewards, mean_train_rewards_list, mean_test_rewards_list, now, duration, log_save_path):  
     """Write results to a file."""
-    # create a directory to save the results
-    save_path = f"results/{env}/{agent}/{experiment}/logs"
-    os.makedirs(save_path, exist_ok=True)
-    # write results to a file
-    with open(f"{save_path}/{agent}_{env}_{now}.txt", "w") as f:
-        f.write(f"Environment: {env}\n")
-        f.write(f"Agent: {agent}\n")
-        f.write(f"Experiment: {experiment}\n")
-        f.write(f"Parameter: {parameter}\n")
-        f.write(f"Time Taken: {duration} seconds\n")
-        f.write(f"Episodes: {episodes} episodes\n")
-        f.write(f"Max Episodes: {max_episodes} episodes\n")
-        f.write(f"Reward threshold: {reward_threshold}\n")
-        f.write("Episode\tTrain Reward\tTest Reward\n")
-        for i in range(len(train_rewards)):
-            f.write(f"{i+1}\t{train_rewards[i]}\t{test_rewards[i]}\n")
+
+    episodes = list(range(1, episodes + 1))
+
+    df = pd.DataFrame({
+        "Episode": episodes,
+        "Train Reward": train_rewards,
+        "Test Reward": test_rewards,
+        "Mean Train Reward": mean_train_rewards_list,
+        "Mean Test Reward": mean_test_rewards_list,
+        "Duration": duration
+    })
+
+    # Save the DataFrame to a CSV file
+    df.to_csv(f"{log_save_path}/log_{now}.csv", index=False)
 
 def select_experiment():
     print("Select experiment to run:")
@@ -93,7 +92,7 @@ def create_env(env_name, params):
     elif env_name == "LunarLander-v2":
 
         if "standard" in params: 
-            experiment = "standard_experiment"
+            experiment = "standard_lunarlander_experiment"
             parameter = "standard"
           
         elif "max_gravity" in params:
@@ -126,11 +125,12 @@ def select_agent():
     print("3. DQN")
     print("4. A2C_Target") 
     print("5. A2C_SU")
+    print("6. A2C_MLP")
     
     while True:
         try:
             agent_selection = int(input("Enter the number of the agent: "))
-            if agent_selection in range(1, 6):
+            if agent_selection in range(1, 7):
                 return agent_selection
             else:
                 print("Invalid input. Please enter a number between 1 and 5.")
@@ -162,7 +162,12 @@ agents = {
         3: ("DQN", train_dqn),
         4: ("A2C_Target", train_a2c_target),
         5: ("A2C_SU", train_a2c_su),
+        6: ("A2C_MLP", train_a2c_mlp)
     }
+
+
+mean_train_rewards_list = []
+mean_test_rewards_list = []
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
@@ -172,11 +177,19 @@ for agent_id, (agent_name, agent_function) in agents.items():
             train_env, test_env, experiment, parameter = create_env(env_name, params)
             
             for i in range(num_experiments):
+
                 print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
                 train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
                 now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-                plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
-                write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)
+                plot_save_path = f"results/{agent_name}/{experiment}/plots"
+                os.makedirs(plot_save_path, exist_ok=True)
+
+                log_save_path = f"results/{agent_name}/{experiment}/logs"
+                os.makedirs(log_save_path, exist_ok=True)
+
+                plot_results(train_rewards, test_rewards, reward_threshold, now, plot_save_path)
+                write_results(episode, train_rewards, test_rewards, mean_train_rewards_list, mean_test_rewards_list, now, duration, log_save_path)
+
                 print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")
         
     else: 
@@ -185,6 +198,13 @@ for agent_id, (agent_name, agent_function) in agents.items():
             print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name}")
             train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-            plot_results(train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now)
-            write_results(episode, train_rewards, test_rewards, reward_threshold, env_name, agent_name, experiment, parameter, now, duration, max_episodes)
+            plot_save_path = f"results/{agent_name}/{experiment}/plots"
+            os.makedirs(plot_save_path, exist_ok=True)
+
+            log_save_path = f"results/{agent_name}/{experiment}/logs"
+            os.makedirs(log_save_path, exist_ok=True)
+
+            plot_results(train_rewards, test_rewards, reward_threshold, now, plot_save_path)
+            write_results(episode, train_rewards, test_rewards, mean_train_rewards_list, mean_test_rewards_list, now, duration, log_save_path)
+
             print(f"Experiment {i+1}/{num_experiments} completed for {agent_name}")

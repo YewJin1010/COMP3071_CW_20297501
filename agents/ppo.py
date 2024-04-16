@@ -274,6 +274,8 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
 
     train_rewards = []
     test_rewards = []
+    mean_train_rewards_list = []
+    mean_test_rewards_list = []
 
     start_time = time.time()
 
@@ -296,6 +298,9 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
         mean_train_rewards = np.mean(train_rewards[-N_TRIALS:])
         mean_test_rewards = np.mean(test_rewards[-N_TRIALS:])
         
+        mean_train_rewards_list.append(mean_train_rewards)
+        mean_test_rewards_list.append(mean_test_rewards)
+
         if episode % PRINT_EVERY == 0:
             print(f'| Episode: {episode:3} | Mean Train Rewards: {mean_train_rewards:7.1f} | Mean Test Rewards: {mean_test_rewards:7.1f} |')
 
@@ -308,7 +313,7 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
                     duration = end_time - start_time
 
                     print(f'Reached reward threshold in {episode} episodes for CartPole')
-                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode, duration
+                    return train_rewards, test_rewards, REWARD_THRESHOLD_CARTPOLE, episode, duration, mean_train_rewards_list, mean_test_rewards_list
             else:
                 consecutive_episodes = 0
         elif test_env.unwrapped.spec.id == 'LunarLander-v2':
@@ -318,40 +323,10 @@ def train_ppo(train_env, test_env, max_episodes, parameters):
                 duration = end_time - start_time
 
                 print(f'Reached reward threshold in {episode} episodes for Lunar Lander')
-                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode, duration
+                return train_rewards, test_rewards, REWARD_THRESHOLD_LUNAR_LANDER, episode, duration, mean_train_rewards_list, mean_test_rewards_list
 
     end_time = time.time()
     duration = end_time - start_time
 
     print("Did not reach reward threshold")
-    return train_rewards, test_rewards, None, episode, duration
-
-def run_experiment(env_name, max_episodes, num_repetitions):
-    train_rewards_all = []
-    test_rewards_all = []
-    durations_all = []
-
-    for _ in range(num_repetitions):
-        print(f"Running experiment for {env_name}")
-        train_env = gym.make(env_name)
-        test_env = gym.make(env_name)
-        train_rewards, test_rewards, _, _, duration = train_ppo(train_env, test_env, max_episodes)
-        train_rewards_all.append(train_rewards)
-        test_rewards_all.append(test_rewards)
-        durations_all.append(duration)
-
-    return train_rewards_all, test_rewards_all, durations_all
-
-"""
-# Run experiment for LunarLander
-env_name = 'LunarLander-v2'
-max_episodes = 2000
-num_repetitions = 2
-train_rewards_all, test_rewards_all, durations_all = run_experiment(env_name, max_episodes, num_repetitions)
-
-# Run experiment for CartPole
-env_name = 'CartPole-v0'
-max_episodes = 2000
-num_repetitions = 2
-train_rewards_all, test_rewards_all, durations_all = run_experiment(env_name, max_episodes, num_repetitions)
-"""
+    return train_rewards, test_rewards, None, episode, duration, mean_train_rewards_list, mean_test_rewards_list
