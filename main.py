@@ -12,7 +12,6 @@ import pandas as pd
 from agents.ppo import train_ppo
 from agents.a2c import train_a2c
 from agents.dqn import train_dqn
-from agents.a2c_target import train_a2c_target
 from agents.a2c_su import train_a2c_su
 from agents.a2c_mlp import train_a2c_mlp
 
@@ -155,9 +154,8 @@ if __name__ == "__main__":
         1: ("PPO", train_ppo),
         2: ("A2C", train_a2c),
         3: ("DQN", train_dqn),
-        4: ("A2C_Target", train_a2c_target),
-        5: ("A2C_SU", train_a2c_su),
-        6: ("A2C_MLP", train_a2c_mlp)
+        4: ("A2C_MLP", train_a2c_mlp),
+        5: ("A2C_SU", train_a2c_su)
     }
     
     agent_name, agent_function = agents[agent_selection]
