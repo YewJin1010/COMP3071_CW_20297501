@@ -34,7 +34,7 @@ def write_results(episodes, train_rewards, test_rewards, mean_train_rewards_list
     """Write results to a file."""
 
     episodes = list(range(1, episodes + 1))
-
+  
     df = pd.DataFrame({
         "Episode": episodes,
         "Train Reward": train_rewards,
@@ -196,7 +196,7 @@ for agent_id, (agent_name, agent_function) in agents.items():
         train_env, test_env, experiment, parameter = create_env(env_name, {})
         for i in range(num_experiments):
             print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name}")
-            train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
+            train_rewards, test_rewards, reward_threshold, episode, duration, mean_train_rewards_list, mean_test_rewards_list = agent_function(train_env, test_env, max_episodes, parameter)
             now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
             plot_save_path = f"results/{agent_name}/{experiment}/plots"
             os.makedirs(plot_save_path, exist_ok=True)
