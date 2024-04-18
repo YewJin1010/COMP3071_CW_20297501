@@ -177,7 +177,7 @@ for agent_id, (agent_name, agent_function) in agents.items():
             for i in range(num_experiments):
 
                 print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
-                train_rewards, test_rewards, reward_threshold, episode, duration = agent_function(train_env, test_env, max_episodes, parameter)
+                train_rewards, test_rewards, reward_threshold, episode, duration, mean_train_rewards_list, mean_test_rewards_list = agent_function(train_env, test_env, max_episodes, parameter)
                 now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
                 plot_save_path = f"results/{agent_name}/{experiment}/plots"
                 os.makedirs(plot_save_path, exist_ok=True)
