@@ -157,7 +157,7 @@ num_experiments = int(input("Enter the number of experiments to run: "))
  
 agents = {
         #1: ("PPO", train_ppo),
-        2: ("A2C", train_a2c),
+        #2: ("A2C", train_a2c),
         #3: ("DQN", train_dqn),
         4: ("A2C_MLP", train_a2c_mlp),
         5: ("A2C_SU", train_a2c_su)
@@ -166,7 +166,7 @@ agents = {
 
 mean_train_rewards_list = []
 mean_test_rewards_list = []
-learning_rates = [5e-4, 1e-3, 5e-3]
+learning_rates = [5e-4]
 
 
 
