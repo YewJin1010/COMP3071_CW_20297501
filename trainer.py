@@ -159,7 +159,7 @@ agents = {
         #1: ("PPO", train_ppo),
         #2: ("A2C", train_a2c),
         #3: ("DQN", train_dqn),
-        4: ("A2C_MLP", train_a2c_mlp),
+        #4: ("A2C_MLP", train_a2c_mlp),
         5: ("A2C_SU", train_a2c_su)
     }
 
