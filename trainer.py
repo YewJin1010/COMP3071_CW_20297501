@@ -122,9 +122,8 @@ def select_agent():
     print("1. PPO")
     print("2. A2C")
     print("3. DQN")
-    print("4. A2C_Target") 
-    print("5. A2C_SU")
-    print("6. A2C_MLP")
+    print("4. A2C_SU")
+    print("5. A2C_MLP")
     
     while True:
         try:
@@ -156,43 +155,37 @@ if max_episodes < 2000:
 num_experiments = int(input("Enter the number of experiments to run: "))
  
 agents = {
-        #1: ("PPO", train_ppo),
-        #2: ("A2C", train_a2c),
-        #3: ("DQN", train_dqn),
-        #4: ("A2C_MLP", train_a2c_mlp),
+        1: ("PPO", train_ppo),
+        2: ("A2C", train_a2c),
+        3: ("DQN", train_dqn),
+        4: ("A2C_MLP", train_a2c_mlp),
         5: ("A2C_SU", train_a2c_su)
     }
 
-
 mean_train_rewards_list = []
 mean_test_rewards_list = []
-learning_rates = [5e-4]
-
-
 
 for agent_id, (agent_name, agent_function) in agents.items():
     print(f"Running experiments for {agent_name}")
     if env_name == "LunarLander-v2":
-        for rate in learning_rates:
-            for params in experiment_parameters:
-                # Modify the environment based on the current parameter combination
-                train_env, test_env, experiment, parameter = create_env(env_name, params)
-                
-                for i in range(num_experiments):
-                    print("Learning rate: ", rate)
-                    print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
-                    train_rewards, test_rewards, reward_threshold, episode, duration, mean_train_rewards_list, mean_test_rewards_list = agent_function(train_env, test_env, max_episodes, parameter, rate)
-                    now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-                    plot_save_path = f"results/{agent_name}/{experiment}/{rate}/plots"
-                    os.makedirs(plot_save_path, exist_ok=True)
+        for params in experiment_parameters:
+            # Modify the environment based on the current parameter combination
+            train_env, test_env, experiment, parameter = create_env(env_name, params)
+            
+            for i in range(num_experiments):
+                print(f"Running {experiment}: {i+1}/{num_experiments} for {agent_name} with parameters: {parameter}")
+                train_rewards, test_rewards, reward_threshold, episode, duration, mean_train_rewards_list, mean_test_rewards_list = agent_function(train_env, test_env, max_episodes, parameter)
+                now = datetime.datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+                plot_save_path = f"results/{agent_name}/{experiment}/plots"
+                os.makedirs(plot_save_path, exist_ok=True)
 
-                    log_save_path = f"results/{agent_name}/{experiment}/logs"
-                    os.makedirs(log_save_path, exist_ok=True)
+                log_save_path = f"results/{agent_name}/{experiment}/logs"
+                os.makedirs(log_save_path, exist_ok=True)
 
-                    plot_results(train_rewards, test_rewards, reward_threshold, now, plot_save_path)
-                    write_results(episode, train_rewards, test_rewards, mean_train_rewards_list, mean_test_rewards_list, now, duration, log_save_path)
+                plot_results(train_rewards, test_rewards, reward_threshold, now, plot_save_path)
+                write_results(episode, train_rewards, test_rewards, mean_train_rewards_list, mean_test_rewards_list, now, duration, log_save_path)
 
-                    print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")
+                print(f"Experiment {i+1}/{num_experiments} completed for {agent_name} with parameters: {parameter}")
             
     else: 
         train_env, test_env, experiment, parameter = create_env(env_name, {})

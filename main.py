@@ -131,9 +131,8 @@ def select_agent():
     print("1. PPO")
     print("2. A2C")
     print("3. DQN")
-    print("4. A2C_Target") 
-    print("5. A2C_SU")
-    print("6. A2C_MLP")
+    print("4. A2C_SU")
+    print("5. A2C_MLP")
     
     while True:
         try:

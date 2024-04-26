@@ -199,12 +199,12 @@ def randomise_wind(train_env, test_env, parameters):
     train_env.env.turbulence_power = turburlence_power
     test_env.env.turbulence_power = turburlence_power
 
-def train_a2c(train_env, test_env, max_episodes, parameters, learning_rate):
+def train_a2c(train_env, test_env, max_episodes, parameters):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99 
     N_TRIALS = 100 # Number of trials to average rewards over
     PRINT_EVERY = 100 # Print average rewards every n episodes
-    LEARNING_RATE = learning_rate 
+    LEARNING_RATE = 5e-4 
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
