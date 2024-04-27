@@ -1,7 +1,0 @@
-Environment: LunarLander
-Agent: PPO
-Parameters: gravity_-10.0_wind_15.0_turbulence_1.5
-Episodes: 1
-Train rewards: [-162.37310043506324]
-Test rewards: [-434.13821389826603]
-Reward threshold: None
