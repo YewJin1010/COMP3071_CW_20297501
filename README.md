@@ -46,3 +46,9 @@ For the Trainer, the inputs for gravity and wind are preset to the maximum value
     Wind Turbulence Power: 2
 Make sure to follow these instructions when using the code.
 
+## Utils
+Additional utilities were utilised for plotting data for report writing:
+
+**plot_experiment**: This utility plots the performance of agents for each experiment.
+
+**plot_agent**: This utility plots the performance of each agent across all experiments.
