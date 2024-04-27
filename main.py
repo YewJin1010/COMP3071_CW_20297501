@@ -1,11 +1,9 @@
-import torch
 import numpy as np
 import gym
 from gym.envs import box2d
 import matplotlib.pyplot as plt
 import os
 import datetime
-import csv
 import pandas as pd
 
 # Import agents
@@ -84,7 +82,9 @@ def create_env(env_name):
     if env_name == "CartPole-v0":
         experiment = "cartpole_experiment"
         parameter = "standard"
-        return gym.make(env_name), gym.make(env_name), experiment, parameter
+        train_env = gym.make(env_name, render_mode='human')
+        test_env = gym.make(env_name, render_mode='human')
+        return train_env, test_env, experiment, parameter
 
     elif env_name == "LunarLander-v2":
         experiment_selection = select_experiment()
@@ -116,8 +116,8 @@ def create_env(env_name):
             experiment = "wind_and_turbulence_experiment"
             parameter = f"Wind power = {maximum_wind_power}, Turbulence power = {maximum_turbulence_power}"
 
-        train_env = gym.make(env_name)
-        test_env = gym.make(env_name)
+        train_env = gym.make(env_name, render_mode='human')
+        test_env = gym.make(env_name, render_mode='human')
 
         seed = 1234
         train_env.seed(seed)
