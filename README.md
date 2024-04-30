@@ -1,7 +1,7 @@
 # COMP3071_CW_20297501
 
 ## Description
-This repository contains code for the COMP3071 coursework. It is the GitHub version and the dependencies will not be provided.
+This repository contains code for the COMP3071 coursework. It is availalbe on GitHub version and the dependencies will not be provided.
 
 ## Dependencies
 - gym version = 0.25.2
