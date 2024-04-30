@@ -16,14 +16,8 @@ EPS_DECAY = 0.995           # Epsilon decay rate
 
 # Multi-Layer Perceptron (MLP) network
 class MLP(nn.Module):
-
+    """Multi-Layer Perceptron (MLP) network."""
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
-        """
-        :param input_dim: int: Dimension of the input
-        :param hidden_dim: int: Dimension of the hidden layer
-        :param output_dim: int: Dimension of the output
-        :param dropout: float: Dropout rate
-        """ 
         super().__init__()
         
         self.net = nn.Sequential(
@@ -63,12 +57,23 @@ class ActorCritic(nn.Module):
 
 # Initialize the weights of the network
 def init_weights(m):
+    """
+    Initialize the weights of the neural network."""
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
 # Train the agent using Proximal Policy Optimization (PPO)
 def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip, eps):
+    """
+    param env: gym.Env: OpenAI Gym environment
+    param policy: nn.Module: Actor-Critic network
+    param optimizer: torch.optim: Optimizer
+    param discount_factor: float: Discount factor for future rewards
+    param ppo_steps: int: Number of steps to optimize the policy
+    param ppo_clip: float: Clipping parameter for the policy loss
+    param eps: float: Epsilon for epsilon-greedy strategy
+    """
         
     policy.train()
         
@@ -131,6 +136,8 @@ def train(env, policy, optimizer, discount_factor, ppo_steps, ppo_clip, eps):
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize = True):
+    """
+    Calculate the discounted returns."""
     returns = []
     R = 0
     for r in reversed(rewards):
@@ -142,13 +149,14 @@ def calculate_returns(rewards, discount_factor, normalize = True):
     return returns
 
 def calculate_advantages(returns, values, normalize = True):
+    """Calculate the advantages."""
     advantages = returns - values
     if normalize:
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
 def update_policy(policy, states, actions, log_prob_actions, advantages, returns, optimizer, ppo_steps, ppo_clip):
-    
+    """Update the policy using Proximal Policy Optimization (PPO)."""
     total_policy_loss = 0 
     total_value_loss = 0
 
@@ -187,7 +195,8 @@ def update_policy(policy, states, actions, log_prob_actions, advantages, returns
     return total_policy_loss / ppo_steps, total_value_loss / ppo_steps
 
 def evaluate(env, policy):
-    
+    """
+    Evaluate the policy on the environment."""
     policy.eval()
     done = False
     episode_reward = 0

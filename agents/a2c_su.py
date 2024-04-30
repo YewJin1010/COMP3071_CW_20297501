@@ -14,6 +14,8 @@ EPS_END = 0.01              # Minimum epsilon
 EPS_DECAY = 0.995           # Epsilon decay rate
 
 class ActorCritic(nn.Module):
+    """
+    Actor-Critic network for A2C."""
     def __init__(self, state_dim, action_dim, hidden_dim=128):
         super(ActorCritic, self).__init__()
         
@@ -33,6 +35,8 @@ class ActorCritic(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
 
+        """
+        Initialize the target networks for soft updates."""
         # Initialize target networks
         self.target_actor = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
@@ -57,17 +61,23 @@ class ActorCritic(nn.Module):
         return action_mean, value
     
     def soft_update(self, tau):
+        """
+        Perform soft update of target network parameters."""
         for target_param, local_param in zip(self.target_actor.parameters(), self.actor.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
         for target_param, local_param in zip(self.target_critic.parameters(), self.critic.parameters()):
             target_param.data.copy_(tau * local_param.data + (1.0 - tau) * target_param.data)
 
 def init_weights(m):
+    """
+    Initialize the weights of the neural network."""
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
     
 def train(env, policy, optimizer, discount_factor, tau, eps):
+    """
+    Train the Actor-Critic network using the A2C algorithm."""
     
     policy.train()
     
@@ -131,6 +141,8 @@ def train(env, policy, optimizer, discount_factor, tau, eps):
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):
+    """
+    Calculate the discounted returns for a given episode."""
     returns = []
     R = 0
     for r in reversed(rewards):
@@ -142,12 +154,16 @@ def calculate_returns(rewards, discount_factor, normalize=True):
     return returns
 
 def calculate_advantages(returns, values, normalize=True):
+    """
+    Calculate the advantages of the returns."""
     advantages = returns - values
     if normalize:
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
 def update_policy(advantages, log_prob_actions, returns, values, optimizer):
+    """
+    Update the policy and value networks using the calculated advantages and returns."""
         
     advantages = advantages.detach()
     returns = returns.detach()
@@ -166,6 +182,8 @@ def update_policy(advantages, log_prob_actions, returns, values, optimizer):
     return policy_loss.item(), value_loss.item()
 
 def evaluate(env, policy):
+    """
+    Evaluate the policy network."""
     
     policy.eval()
     
@@ -228,7 +246,7 @@ def train_a2c_su(train_env, test_env, max_episodes, parameters):
     MAX_EPISODES = max_episodes
     DISCOUNT_FACTOR = 0.99
     N_TRIALS = 100
-    PRINT_EVERY = 10
+    PRINT_EVERY = 100
     LEARNING_RATE = 5e-4
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole

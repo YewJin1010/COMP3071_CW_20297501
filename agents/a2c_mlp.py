@@ -14,6 +14,8 @@ EPS_END = 0.01              # Minimum epsilon
 EPS_DECAY = 0.995           # Epsilon decay rate
 
 class MLP(nn.Module):
+    """
+    Multi-layer perceptron (MLP) network for A2C."""
     def __init__(self, input_dim, hidden_dim, output_dim, dropout = 0.1):
         super().__init__()
         
@@ -32,6 +34,8 @@ class MLP(nn.Module):
         return x
     
 class ActorCritic(nn.Module):
+    """
+    Actor-Critic network for A2C."""
     def __init__(self, actor, critic):
         super().__init__()
         self.actor = actor
@@ -45,11 +49,15 @@ class ActorCritic(nn.Module):
         return action_pred, value_pred
 
 def init_weights(m):
+    """
+    Initialize the weights of the neural network."""
     if type(m) == nn.Linear:
         torch.nn.init.xavier_normal_(m.weight)
         m.bias.data.fill_(0)
 
 def train(env, policy, optimizer, discount_factor, eps):
+    """
+    Train the Actor-Critic network using the A2C-MLP."""
     
     policy.train()
     
@@ -113,6 +121,8 @@ def train(env, policy, optimizer, discount_factor, eps):
     return policy_loss, value_loss, episode_reward
 
 def calculate_returns(rewards, discount_factor, normalize=True):
+    """
+    Calculate the discounted returns for the rewards."""
     returns = []
     R = 0
     for r in reversed(rewards):
@@ -124,12 +134,16 @@ def calculate_returns(rewards, discount_factor, normalize=True):
     return returns
 
 def calculate_advantages(returns, values, normalize=True):
+    """
+    Calculate the advantages of the returns."""
     advantages = returns - values
     if normalize:
         advantages = (advantages - advantages.mean()) / advantages.std()
     return advantages
 
 def update_policy(advantages, log_prob_actions, returns, values, optimizer):
+    """
+    Update the policy using the A2C loss function."""
         
     advantages = advantages.detach()
     returns = returns.detach()
@@ -148,7 +162,8 @@ def update_policy(advantages, log_prob_actions, returns, values, optimizer):
     return policy_loss.item(), value_loss.item()
 
 def evaluate(env, policy):
-    
+    """
+    Evaluate the policy on the environment."""
     policy.eval()
     done = False
     episode_reward = 0
@@ -205,19 +220,21 @@ def randomise_wind(train_env, test_env, parameters):
     test_env.env.turbulence_power = turburlence_power
 
 def train_a2c_mlp(train_env, test_env, max_episodes, parameters):
-    MAX_EPISODES = max_episodes
-    DISCOUNT_FACTOR = 0.99
-    N_TRIALS = 100
-    PRINT_EVERY = 100
-    LEARNING_RATE = 5e-4
+    MAX_EPISODES = max_episodes # Maximum number of episodes to run
+    DISCOUNT_FACTOR = 0.99 # Discount factor for future rewards
+    N_TRIALS = 100 # Number of trials to average rewards over
+    PRINT_EVERY = 100 # Print average rewards every n episodes
+    LEARNING_RATE = 5e-4 # Learning rate for optimizer
     consecutive_episodes = 0 # Number of consecutive episodes that have reached the reward threshold
     REWARD_THRESHOLD_CARTPOLE = 195 # Reward threshold for CartPole
     REWARD_THRESHOLD_LUNAR_LANDER = 200 # Reward threshold for Lunar Lander
 
+    # Define the neural network dimensions
     INPUT_DIM = train_env.observation_space.shape[0]
     HIDDEN_DIM = 128
     OUTPUT_DIM = train_env.action_space.n
 
+    # Define the neural network
     actor = MLP(INPUT_DIM, HIDDEN_DIM, OUTPUT_DIM)
     critic = MLP(INPUT_DIM, HIDDEN_DIM, 1)
 
