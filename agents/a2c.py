@@ -53,7 +53,7 @@ def train(env, policy, optimizer, discount_factor, eps):
     """
     Train the Actor-Critic network using the A2C algorithm."""
 
-    policy.train()
+    policy.train() # Set the network to training mode
     
     states = []
     actions = []
@@ -63,24 +63,24 @@ def train(env, policy, optimizer, discount_factor, eps):
     done = False
     episode_reward = 0
 
-    state = env.reset()
+    state = env.reset() # Reset the environment and get the initial state
 
     while not done:
-        if isinstance(state, tuple):
-            state, _ = state
+        if isinstance(state, tuple): 
+            state, _ = state 
 
-        state = torch.FloatTensor(state).unsqueeze(0)
+        state = torch.FloatTensor(state).unsqueeze(0) # Convert the state to a PyTorch tensor
     
         states.append(state)
-        action_pred, value_pred = policy(state)
+        action_pred, value_pred = policy(state) # Get the action and value predictions from the network
                 
-        action_prob = F.softmax(action_pred, dim=-1)
+        action_prob = F.softmax(action_pred, dim=-1) # Compute the action probabilities
 
         p = random.random()
-        if p <= eps:
+        if p <= eps: # Explore 
             action = env.action_space.sample()
-        else:
-            action = torch.argmax(action_prob, dim=-1)
+        else: # Exploit
+            action = torch.argmax(action_prob, dim=-1) # Choose the action with the highest probability
 
         dist = distributions.Categorical(action_prob)
         action = dist.sample()
